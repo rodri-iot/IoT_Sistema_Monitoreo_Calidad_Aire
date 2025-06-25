@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+
+  mongo:
+    image: mongo:6
+    container_name: mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./database/data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: smca
+    networks:
+      - smca_net
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"     # Conexión sin TLS (solo para debug)
+      - "8883:8883"     # Conexión segura MQTTs
+    volumes:
+      - ./mqtt/config:/mosquitto/config
+      - ./mqtt/certs:/mosquitto/certs
+      - ./mqtt/data:/mosquitto/data
+      - ./mqtt/log:/mosquitto/log
+    networks:
+      - smca_net
+
+  backend:
+    build: ./backend
+    container_name: backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - mosquitto
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    networks:
+      - smca_net
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    networks:
+      - smca_net
+
+networks:
+  smca_net:
+    driver: bridge
