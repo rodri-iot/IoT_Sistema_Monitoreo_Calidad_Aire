@@ -135,6 +135,7 @@ Infraestructura:
 
 
 
+## Directorio del Proyecto
 ``` bash
 IoT_Sistema_Monitoreo_Calidad_Aire/
 ├── backend/ # API REST + MQTT + MongoDB

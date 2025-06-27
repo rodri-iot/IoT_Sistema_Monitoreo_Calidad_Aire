@@ -16,47 +16,24 @@ services:
       - smca_net
 
   mosquitto:
-    image: eclipse-mosquitto:2.0
+    build: ./mqtt
     container_name: mosquitto
     restart: unless-stopped
     ports:
-      - "1883:1883"     # Conexión sin TLS (solo para debug)
+      - "1883:1883"     # Conexión sin TLS (opcional)
       - "8883:8883"     # Conexión segura MQTTs
     volumes:
       - ./mqtt/config:/mosquitto/config
       - ./mqtt/certs:/mosquitto/certs
-      - ./mqtt/data:/mosquitto/data
-      - ./mqtt/log:/mosquitto/log
-    networks:
-      - smca_net
-
-  backend:
-    build: ./backend
-    container_name: backend
-    restart: unless-stopped
-    depends_on:
-      - mongo
-      - mosquitto
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./backend:/app
-    env_file:
-      - ./backend/.env
-    networks:
-      - smca_net
-
-  frontend:
-    build: ./frontend
-    container_name: frontend
-    restart: unless-stopped
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
     networks:
       - smca_net
 
 networks:
   smca_net:
     driver: bridge
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:

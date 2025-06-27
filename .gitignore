@@ -1,0 +1,65 @@
+# Archivos de entorno
+.env
+.env.*
+!.env.example
+
+# Scripts y herramientas de test
+test_mqtt_tls_pub.sh
+test_mqtt_tls_sub.sh
+
+# Certificados y llaves (TLS, SSH, etc.)
+*.pem
+*.crt
+*.key
+*.csr
+*.der
+*.cnf
+certs/
+mqtt/certs/
+docker/mosquitto/certs/
+
+# Archivos de configuración sensibles
+*.config.json
+*.secrets.json
+
+# Archivos y carpetas generadas por Docker
+**/data/
+**/log/
+**/logs/
+**/__pycache__/
+
+# Archivos de VS Code / IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# Archivos de sistema y temporales
+.DS_Store
+Thumbs.db
+
+# Entornos virtuales de Python
+.venv/
+venv/
+ENV/
+env/
+
+# Archivos del backend que no se deben subir
+backend/certs/
+backend/.env
+
+# Archivos del frontend (si usás React/Vite)
+frontend/.env*
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# MQTT logs si están fuera de `log/`
+*.log
+
+# Archivos de debugging
+*.pid
+*.log.*
+
+# Otros
+*.bak
+*.swp
