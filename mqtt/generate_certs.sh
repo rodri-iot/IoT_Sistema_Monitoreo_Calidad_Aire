@@ -65,6 +65,7 @@ subjectAltName = @alt_names
 
 [ alt_names ]
 IP.1 = $IP
+DNS.1 = mosquitto
 EOF
 fi
 

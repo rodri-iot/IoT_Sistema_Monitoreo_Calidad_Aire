@@ -1,0 +1,16 @@
+
+# Puerto del backend
+PORT=3000
+
+# MongoDB local (usado en docker-compose)
+MONGO_URI=mongodb://mongo:27017/smca
+
+# MQTT broker con TLS
+MQTT_HOST=mqtts://mosquitto:8883
+MQTT_TOPIC=iot/aire/lectura
+CLIENT_ID=backend_smca
+
+# Rutas de certificados TLS (dentro del contenedor)
+CA_CERT=./certs/ca.crt
+CLIENT_CERT=./certs/client.crt
+CLIENT_KEY=./certs/client.key

@@ -1,3 +1,4 @@
+
 version: "3.8"
 
 services:
@@ -9,7 +10,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - ./database/data:/data/db
+      - mongo_data:/data/db
     environment:
       MONGO_INITDB_DATABASE: smca
     networks:
@@ -30,6 +31,23 @@ services:
     networks:
       - smca_net
 
+  backend:
+    build: ./backend
+    container_name: backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - mosquitto
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/certs:/app/certs
+    env_file:
+      - ./backend/.env
+    networks:
+      - smca_net
+
+
 networks:
   smca_net:
     driver: bridge
@@ -37,3 +55,4 @@ networks:
 volumes:
   mosquitto_data:
   mosquitto_log:
+  mongo_data:

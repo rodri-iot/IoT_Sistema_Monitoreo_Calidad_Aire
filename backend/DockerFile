@@ -1,0 +1,20 @@
+
+FROM node:18
+
+# Crear directorio de trabajo
+WORKDIR /app
+
+# Copiar archivos necesarios
+COPY ./src ./src
+COPY .env .env
+COPY package*.json ./
+COPY ./certs ./certs
+
+# Instalar dependencias
+RUN npm install
+
+# Exponer el puerto del backend
+EXPOSE 3000
+
+# Comando de inicio
+CMD ["node", "src/server.js"]

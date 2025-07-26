@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+./backend/.env
 
 # Scripts y herramientas de test
 test_mqtt_tls_pub.sh
@@ -17,6 +18,8 @@ test_mqtt_tls_sub.sh
 certs/
 mqtt/certs/
 docker/mosquitto/certs/
+# Ignorar certificados TLS sensibles
+backend/certs/
 
 # Archivos de configuración sensibles
 *.config.json
@@ -46,6 +49,7 @@ env/
 # Archivos del backend que no se deben subir
 backend/certs/
 backend/.env
+backend/node_modules/
 
 # Archivos del frontend (si usás React/Vite)
 frontend/.env*
