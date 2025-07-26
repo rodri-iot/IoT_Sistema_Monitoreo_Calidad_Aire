@@ -2,7 +2,6 @@
 .env
 .env.*
 !.env.example
-./backend/.env
 
 # Scripts y herramientas de test
 test_mqtt_tls_pub.sh
