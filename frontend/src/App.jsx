@@ -8,6 +8,7 @@ import Zonas from './views/Zonas'
 import Dispositivos from './views/Dispositivos'
 import Lecturas from './views/Lecturas'
 import Usuarios from './views/Usuarios'
+import EmpresasAdmin from './views/EmpresasAdmin'
 import Empresas from './views/Empresas'
 import { AuthProvider } from './context/AuthContext'
 import Unauthorized from './views/Unauthorized'
@@ -79,6 +80,15 @@ export default function App() {
               element={
                 <RequireAuth allowedRoles={['superadmin']}>
                   <Empresas />
+                </RequireAuth>
+              }
+            />
+
+            <Route
+              path="/admin/empresas"
+              element={
+                <RequireAuth allowedRoles={['superadmin']}>
+                  <EmpresasAdmin />
                 </RequireAuth>
               }
             />

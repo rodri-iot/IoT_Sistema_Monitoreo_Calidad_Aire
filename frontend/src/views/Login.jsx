@@ -14,25 +14,7 @@ export default function Login() {
     setError('')
 
     try {
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ correo, password }),
-        })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-            setError(data.error || 'Error al iniciar sesión')
-            return
-        }
-
-        if (!data.token || !data.usuario) {
-            setError('Credenciales inválidas')
-            return
-        }
-
-        login(data.usuario)
+        await login(correo, password)
         navigate('/')
     } catch (err) {
         console.error('Error en login:', err)

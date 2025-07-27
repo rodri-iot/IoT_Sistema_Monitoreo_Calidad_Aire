@@ -14,7 +14,10 @@ export default function Empresas() {
     e.preventDefault()
     setMensaje('')
     setError('')
-    const nuevaEmpresa = { empresa, usuario: { correo, rol, password } }
+    const nuevaEmpresa = { 
+      empresa,
+      usuario: { correo, rol, password } 
+    }
 
     try {
       const res = await fetch('/api/empresas', {

@@ -11,7 +11,10 @@ export default function Navbar() {
         <Link to="/" className="brand-logo">SMCA</Link>
         <ul className="right hide-on-med-and-down">
           {user?.rol === 'superadmin' && (
-            <li><Link to="/empresas">Empresas</Link></li>
+            <>
+              <li><Link to="/admin/empresas">Ver Empresas</Link></li>
+              <li><Link to="/empresas">Empresas</Link></li>
+            </>
           )}
           {user ? (
             <>

@@ -25,18 +25,20 @@ export function AuthProvider({ children }) {
 
       const data = await res.json()
 
-      if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión')
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al iniciar sesión')
+      }
 
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.usuario))
       setUser(data.usuario)
       setToken(data.token)
-      return true
     } catch (err) {
-      console.error('🛑 Error al iniciar sesión:', err.message)
+      console.error('🔴 Error al iniciar sesión:', err.message)
       throw err
     }
   }
+
 
 
   const logout = () => {

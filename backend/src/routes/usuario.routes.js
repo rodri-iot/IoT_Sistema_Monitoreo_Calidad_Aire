@@ -1,9 +1,15 @@
 const express = require('express')
 const router = express.Router()
-const { getPerfil } = require('../controllers/usuario.controller')
-const auth = require('../middleware/authMiddleware')
-const { auth, req } = require('../middleware/authMiddleware')
+const { 
+    getPerfil,
+    eliminarUsuario,
+    editarUsuario
+ } = require('../controllers/usuario.controller')
 
-router.get('/usuarios/me', auth, getPerfil)
+const { authMiddleware, requireRole } = require('../middleware/authMiddleware')
+
+router.get('/usuarios/me', authMiddleware, getPerfil)
+router.delete('/usuarios/:id', authMiddleware, requireRole('superadmin'), eliminarUsuario)
+router.put('/usuarios/:id', authMiddleware, requireRole('superadmin'), editarUsuario)
 
 module.exports = router

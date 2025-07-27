@@ -19,7 +19,7 @@ const authRoutes = require('./routes/auth.routes')
 app.use('/api', authRoutes)
 
 const empresaRoutes = require('./routes/empresa.routes')
-app.use('/api', empresaRoutes)
+app.use('/api/empresas', empresaRoutes)
 
 const usuarioRoutes = require('./routes/usuario.routes')
 app.use('/api', usuarioRoutes)
@@ -35,8 +35,8 @@ async function startServer() {
   await connectDB();
   connectMQTT();
 
-  app.listen(PORT, () => {
-    logger(`🚀 Backend escuchando en http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    logger(`🚀 Backend escuchando en http://0.0.0.0:${PORT}`);
   });
 }
 
