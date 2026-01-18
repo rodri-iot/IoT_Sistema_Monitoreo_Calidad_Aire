@@ -1,5 +1,4 @@
 
 FROM eclipse-mosquitto:2.0
-# Dockerfile para configurar un broker MQTT con Eclipse Mosquitto
-# Exponer los puertos MQTT estándar
+
 EXPOSE 1883 8883

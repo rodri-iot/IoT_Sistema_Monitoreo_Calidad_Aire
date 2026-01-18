@@ -12,8 +12,8 @@ const lecturaSchema = new mongoose.Schema({
   co: Number,
   tvoc: Number,
   temperatura: Number,
-  humedad: Number,
-  presion: Number
+  humedad: Number
+/*  presion: Number */
 }, { collection: 'lecturas' });
 
 module.exports = mongoose.model('Lectura', lecturaSchema);

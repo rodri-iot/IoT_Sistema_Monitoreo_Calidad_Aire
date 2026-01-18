@@ -21,11 +21,11 @@ services:
     container_name: mosquitto
     restart: unless-stopped
     ports:
-      - "1883:1883"     # Conexión sin TLS (opcional)
-      - "8883:8883"     # Conexión segura MQTTs
+      - "1883:1883"
+      - "8883:8883"
     volumes:
-      - ./mqtt/config:/mosquitto/config
-      - ./mqtt/certs:/mosquitto/certs
+      - ./mqtt/config:/mosquitto/config:ro
+      - ./mqtt/certs:/mosquitto/certs:ro
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
     networks:

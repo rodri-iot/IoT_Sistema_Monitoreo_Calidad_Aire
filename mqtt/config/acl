@@ -1,0 +1,12 @@
+#=============================
+# Cada dispositivo (username = CN del client cert) publica su telemetría y estado,
+# y solo lee sus comandos.
+pattern write smca/lab/%u/telemetry/#
+pattern write smca/lab/%u/status#
+pattern read  smca/lab/%u/cmd/#
+
+# El backend con acceso global
+user backend_smca
+topic read  smca/lab/+/telemetry/#
+topic write smca/lab/+/cmd/#
+topic read  smca/lab/+/status#

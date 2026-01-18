@@ -24,6 +24,9 @@ app.use('/api/empresas', empresaRoutes)
 const usuarioRoutes = require('./routes/usuario.routes')
 app.use('/api', usuarioRoutes)
 
+const dispositivoRoutes = require('./routes/dispositivo.routes')
+app.use('/api/dispositivos', dispositivoRoutes)
+
 // Rutas
 app.use('/api/lecturas', lecturaRoutes);
 
