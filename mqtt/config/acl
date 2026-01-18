@@ -1,13 +1,30 @@
-#=============================
-# Cada dispositivo (username = CN del client cert) publica su telemetría y estado,
-# y solo lee sus comandos.
-pattern write smca/lab/%u/telemetry/#
-pattern write smca/lab/%u/status/#
-pattern read  smca/lab/%u/cmd/#
+# ============================
+# 📡 ACL - Sistema de Monitoreo de Calidad del Aire
+# ============================
+#
+# Estructura de tópicos:
+# - smca/{usuario}/private/{dispositivo}/telemetry  → Solo visible para {usuario}
+# - smca/{usuario}/public/{dispositivo}/telemetry   → Visible para todos
+# - smca/{usuario}/{dispositivo}/status             → Estado del dispositivo (solo {usuario})
+# - smca/{usuario}/{dispositivo}/cmd                → Comandos para el dispositivo (solo {usuario})
 
-# El backend con acceso global
+# ============================
+# REGLAS PARA DISPOSITIVOS Y USUARIOS (ESP32)
+# ============================
+
+# 1. Cada cliente puede publicar/leer en su propia jerarquía completa
+# %u se reemplaza por el CN del certificado (username del ESP32/usuario)
+pattern readwrite smca/%u/#
+
+# 2. Permitir que CUALQUIER usuario autenticado lea lo que sea "public" de otros
+# El '+' es un comodín para cualquier userID
+topic read smca/+/public/#
+
+# ============================
+# REGLAS PARA EL BACKEND
+# ============================
 user backend_smca
-topic read  smca/lab/+/telemetry/#
-topic write smca/lab/+/cmd/#
-topic read  smca/lab/+/status/#
-topic read  iot/aire/lectura
+# El backend tiene acceso completo a toda la jerarquía smca/
+topic readwrite smca/#
+# Y también al tópico legacy iot/aire/lectura (para compatibilidad)
+topic readwrite iot/aire/#
