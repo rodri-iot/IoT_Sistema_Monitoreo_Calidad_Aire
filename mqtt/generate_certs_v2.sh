@@ -9,7 +9,8 @@ source "$ENV_FILE"
 
 HOST="${MQTT_HOST:?❌ Define MQTT_HOST en .env.local}"
 DAYS="${CERT_DAYS:-365}"
-CERT_DIR="./mqtt/certs"
+# El script se ejecuta desde mqtt/, por lo que usa ./certs (no ./mqtt/certs)
+CERT_DIR="./certs"
 CA_DIR="$CERT_DIR/ca"
 SERVER_DIR="$CERT_DIR/server"
 CLIENTS_DIR="$CERT_DIR/clients"
@@ -34,7 +35,29 @@ fi
 
 # ============== 2) SERVER cert ==============
 echo "📄 Preparando server_openssl.cnf"
-CN="$HOST"
+
+# Extraer hostname si MQTT_HOST contiene URL (ej: mqtts://mosquitto:8883 -> mosquitto)
+# o usar el valor directo si es IP o hostname simple
+if [[ "$HOST" =~ ^[a-z]+://(.+):[0-9]+$ ]]; then
+  EXTRACTED_HOST="${BASH_REMATCH[1]}"
+elif [[ "$HOST" =~ ^[a-z]+://(.+)$ ]]; then
+  EXTRACTED_HOST="${BASH_REMATCH[1]}"
+else
+  EXTRACTED_HOST="$HOST"
+fi
+
+# Para Docker Compose, usamos 'mosquitto' como CN (nombre del servicio)
+# Pero también incluimos la IP original si es una IP
+if is_ipv4 "$EXTRACTED_HOST"; then
+  # Si es IP, usamos 'mosquitto' como CN (para Docker) y agregamos ambos en SAN
+  CN="mosquitto"
+  USE_DNS_AND_IP=true
+else
+  # Si es hostname, lo usamos directamente
+  CN="$EXTRACTED_HOST"
+  USE_DNS_AND_IP=false
+fi
+
 SERVER_CNF="$CERT_DIR/server_openssl.cnf"
 cat > "$SERVER_CNF" <<EOF
 [ req ]
@@ -58,7 +81,12 @@ keyUsage            = digitalSignature, keyEncipherment
 extendedKeyUsage    = serverAuth
 
 [ alt_names ]
-$( if is_ipv4 "$HOST"; then echo "IP.1  = $HOST"; else echo "DNS.1 = $HOST"; fi )
+$( if [ "$USE_DNS_AND_IP" = "true" ]; then
+     echo "DNS.1 = mosquitto"
+     echo "IP.1  = $EXTRACTED_HOST"
+   else
+     echo "DNS.1 = $EXTRACTED_HOST"
+   fi )
 EOF
 
 echo "🔐 Generando Server Key/CSR/CRT..."
