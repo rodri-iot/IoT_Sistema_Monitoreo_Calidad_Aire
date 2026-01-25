@@ -7,24 +7,50 @@
 # - smca/{usuario}/public/{dispositivo}/telemetry   → Visible para todos
 # - smca/{usuario}/{dispositivo}/status             → Estado del dispositivo (solo {usuario})
 # - smca/{usuario}/{dispositivo}/cmd                → Comandos para el dispositivo (solo {usuario})
+# - iot/aire/lectura                                → Tópico legacy (compatibilidad)
 
 # ============================
-# REGLAS PARA DISPOSITIVOS Y USUARIOS (ESP32)
+# REGLAS GLOBALES (Para todos los usuarios autenticados)
+# IMPORTANTE: Estas reglas se aplican a TODOS los usuarios que no tengan reglas específicas
 # ============================
 
-# 1. Cada cliente puede publicar/leer en su propia jerarquía completa
+# 1. Permitir que cualquier dispositivo autenticado publique en el tópico legacy
+# Esto permite que los ESP32 publiquen directamente a iot/aire/lectura
+topic write iot/aire/lectura
+
+# 2. Cada cliente puede publicar/leer en su propia jerarquía completa
 # %u se reemplaza por el CN del certificado (username del ESP32/usuario)
 pattern readwrite smca/%u/#
 
-# 2. Permitir que CUALQUIER usuario autenticado lea lo que sea "public" de otros
+# 3. Permitir que CUALQUIER usuario autenticado lea lo que sea "public" de otros
 # El '+' es un comodín para cualquier userID
 topic read smca/+/public/#
 
 # ============================
-# REGLAS PARA EL BACKEND
+# REGLAS ESPECÍFICAS POR USUARIO
+# Las reglas específicas tienen prioridad sobre las reglas globales
 # ============================
+
+# Backend: Solo lectura (principio de menor privilegio)
+# El backend nunca publica mensajes, solo los lee y procesa
 user backend_smca
-# El backend tiene acceso completo a toda la jerarquía smca/
-topic readwrite smca/#
-# Y también al tópico legacy iot/aire/lectura (para compatibilidad)
-topic readwrite iot/aire/#
+topic read iot/aire/#
+topic read smca/#
+
+# Reglas específicas para dispositivos (necesarias porque las reglas globales
+# pueden no aplicarse correctamente cuando hay reglas específicas por usuario)
+user nodo01
+topic write iot/aire/lectura
+pattern readwrite smca/nodo01/#
+
+user nodo02
+topic write iot/aire/lectura
+pattern readwrite smca/nodo02/#
+
+user nodo03
+topic write iot/aire/lectura
+pattern readwrite smca/nodo03/#
+
+user nodo04
+topic write iot/aire/lectura
+pattern readwrite smca/nodo04/#

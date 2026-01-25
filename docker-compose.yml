@@ -42,6 +42,7 @@ services:
       - "3000:3000"
     volumes:
       - ./backend/certs:/app/certs
+      - ./mqtt/certs:/mqtt/certs:ro
     env_file:
       - ./backend/.env
     networks:

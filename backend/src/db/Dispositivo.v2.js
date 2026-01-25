@@ -1,3 +1,7 @@
+/**
+ * Modelo Dispositivo - Versión Mejorada
+ * Incluye ubicación y parámetros soportados
+ */
 const mongoose = require('mongoose')
 
 const dispositivoSchema = new mongoose.Schema({

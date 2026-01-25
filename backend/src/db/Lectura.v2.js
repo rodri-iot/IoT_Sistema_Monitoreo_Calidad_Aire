@@ -1,9 +1,8 @@
-
 /**
- * Modelo Lectura - Con Bucket Pattern y Atributos Dinámicos
+ * Modelo Lectura - Versión con Bucket Pattern y Atributos Dinámicos
  * Soporta 2-8+ parámetros ambientales variables por dispositivo
  */
-const mongoose = require('mongoose');
+const mongoose = require('mongoose')
 
 const lecturaSchema = new mongoose.Schema({
   sensorId: { 
@@ -63,15 +62,15 @@ const lecturaSchema = new mongoose.Schema({
 }, { 
   collection: 'lecturas',
   timestamps: false // Usamos timestamp manual
-});
+})
 
 // ⭐ Índices compuestos para queries optimizadas
-lecturaSchema.index({ sensorId: 1, timestamp: -1 });
-lecturaSchema.index({ empresaId: 1, timestamp: -1 });
-lecturaSchema.index({ timestamp: -1 });
-// Índices para queries por parámetro específico
-lecturaSchema.index({ 'valores.pm25': 1 });
-lecturaSchema.index({ 'valores.pm10': 1 });
-lecturaSchema.index({ 'valores.co2': 1 });
+lecturaSchema.index({ sensorId: 1, timestamp: -1 })
+lecturaSchema.index({ empresaId: 1, timestamp: -1 })
+lecturaSchema.index({ timestamp: -1 })
+// Índice para queries por parámetro específico
+lecturaSchema.index({ 'valores.pm25': 1 })
+lecturaSchema.index({ 'valores.pm10': 1 })
+lecturaSchema.index({ 'valores.co2': 1 })
 
-module.exports = mongoose.model('Lectura', lecturaSchema);
+module.exports = mongoose.model('Lectura', lecturaSchema)

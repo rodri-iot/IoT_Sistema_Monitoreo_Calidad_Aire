@@ -20,7 +20,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Navbar />
-        <main className="container">
+        <main>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/public" element={<VistaPublica />} />
