@@ -31,6 +31,21 @@ const lecturaSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
+  zonaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Zona',
+    default: null
+  },
+  aqi: {
+    type: Number,
+    min: 0,
+    max: 500,
+    default: null
+  },
+  aqiParametro: {
+    type: String,
+    default: null
+  },
   
   // ⭐ Atributos dinámicos usando Map
   // Permite almacenar cualquier parámetro ambiental sin modificar el schema
@@ -73,5 +88,7 @@ lecturaSchema.index({ timestamp: -1 });
 lecturaSchema.index({ 'valores.pm25': 1 });
 lecturaSchema.index({ 'valores.pm10': 1 });
 lecturaSchema.index({ 'valores.co2': 1 });
+lecturaSchema.index({ zonaId: 1, timestamp: -1 });
+lecturaSchema.index({ aqi: 1 });
 
 module.exports = mongoose.model('Lectura', lecturaSchema);

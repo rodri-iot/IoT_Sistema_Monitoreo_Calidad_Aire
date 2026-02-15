@@ -23,7 +23,16 @@ const login = async (req, res) => {
       { expiresIn: '8h' }
     )
 
-    res.json({ token, usuario: { correo: usuario.correo, rol: usuario.rol, empresa: usuario.empresa?.nombre } })
+    res.json({
+      token,
+      usuario: {
+        id: usuario._id,
+        correo: usuario.correo,
+        rol: usuario.rol,
+        empresa: usuario.empresa?.nombre,
+        empresaId: usuario.empresa?._id?.toString()
+      }
+    })
   } catch (err) {
     res.status(500).json({ error: 'Error al iniciar sesión' })
   }

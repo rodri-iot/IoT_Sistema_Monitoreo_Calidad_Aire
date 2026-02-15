@@ -15,6 +15,11 @@ const dispositivoSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
+  zonaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Zona',
+    default: null
+  },
   empresa: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Empresa', 
@@ -26,6 +31,7 @@ const dispositivoSchema = new mongoose.Schema({
     lng: { type: Number, required: true }
   },
   descripcion: String,
+  esPublico: { type: Boolean, default: false },
   estado: { 
     type: String, 
     enum: ['activo', 'inactivo', 'desconocido'], 
@@ -45,5 +51,6 @@ const dispositivoSchema = new mongoose.Schema({
 // Índices adicionales
 dispositivoSchema.index({ empresa: 1, estado: 1 })
 dispositivoSchema.index({ zona: 1 })
+dispositivoSchema.index({ zonaId: 1 })
 
 module.exports = mongoose.model('Dispositivo', dispositivoSchema)

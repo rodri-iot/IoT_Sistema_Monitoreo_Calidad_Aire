@@ -1,26 +1,31 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
-import Dashboard from './views/Dashboard'
+import Sidenav from './components/Sidenav'
+import Inicio from './views/Inicio'
 import Login from './views/Login'
 import VistaPublica from './views/VistaPublica'
 import Zonas from './views/Zonas'
 import Dispositivos from './views/Dispositivos'
-import Lecturas from './views/Lecturas'
+import Historico from './views/Historico'
 import Usuarios from './views/Usuarios'
 import EmpresasAdmin from './views/EmpresasAdmin'
 import Empresas from './views/Empresas'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import Unauthorized from './views/Unauthorized'
 import RequireAuth from './components/RequireAuth'
 
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Navbar />
-        <main>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Navbar />
+          <div style={{ display: 'flex', minHeight: 'calc(100vh - 64px)' }}>
+            <Sidenav />
+            <main style={{ flex: 1, overflow: 'auto' }}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/public" element={<VistaPublica />} />
@@ -31,11 +36,10 @@ export default function App() {
               path="/"
               element={
                 <RequireAuth allowedRoles={['superadmin', 'admin', 'supervisor']}>
-                  <Dashboard />
+                  <Inicio />
                 </RequireAuth>
               }
             />
-
             {/* Protegidas: admin o supervisor */}
             <Route
               path="/zonas"
@@ -59,7 +63,7 @@ export default function App() {
               path="/lecturas"
               element={
                 <RequireAuth allowedRoles={['admin', 'supervisor']}>
-                  <Lecturas />
+                  <Historico />
                 </RequireAuth>
               }
             />
@@ -94,8 +98,10 @@ export default function App() {
             />
 
           </Routes>
-        </main>
-      </BrowserRouter>
-    </AuthProvider>
+            </main>
+          </div>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }

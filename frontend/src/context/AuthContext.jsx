@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react'
+import React, { createContext, useState, useEffect, useCallback } from 'react'
 
 export const AuthContext = createContext()
 
@@ -41,15 +41,26 @@ export function AuthProvider({ children }) {
 
 
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('user')
     localStorage.removeItem('token')
     setUser(null)
     setToken(null)
-  }
+  }, [])
+
+  const fetchWithAuth = useCallback(async (url, options = {}) => {
+    const headers = { ...options.headers, Authorization: `Bearer ${token}` }
+    const res = await fetch(url, { ...options, headers })
+    if (res.status === 401) {
+      logout()
+      window.location.href = '/login'
+      throw new Error('Sesión expirada')
+    }
+    return res
+  }, [token, logout])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthContext.Provider value={{ user, token, login, logout, fetchWithAuth }}>
       {children}
     </AuthContext.Provider>
   )

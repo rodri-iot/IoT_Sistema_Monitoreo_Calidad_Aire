@@ -4,6 +4,7 @@ const fs = require('fs');
 const Lectura = require('../db/Lectura');
 const Dispositivo = require('../db/Dispositivo');
 const { logger } = require('../utils/logger');
+const { calcularAQI } = require('../utils/aqiCalculator');
 
 let client;
 
@@ -18,16 +19,33 @@ function connectMQTT() {
 
   client = mqtt.connect(process.env.MQTT_HOST, options);
 
+  const topicLWT = process.env.MQTT_TOPIC_LWT || 'iot/aire/status';
+  const topics = [process.env.MQTT_TOPIC, topicLWT];
+
   client.on('connect', () => {
     logger('📡 Conectado al broker MQTT');
-    client.subscribe(process.env.MQTT_TOPIC, (err) => {
-      if (err) logger('❌ Error al suscribirse al tópico');
-      else logger(`📥 Suscripto al tópico ${process.env.MQTT_TOPIC}`);
+    client.subscribe(topics, (err) => {
+      if (err) logger('❌ Error al suscribirse a tópicos');
+      else logger(`📥 Suscripto a ${topics.join(', ')}`);
     });
   });
 
   client.on('message', async (topic, message) => {
     try {
+      if (topic === topicLWT) {
+        const data = JSON.parse(message.toString());
+        logger(`📴 LWT recibido: ${message.toString()}`);
+        const dispositivo = await Dispositivo.findOne({ sensorId: data.sensorId });
+        if (dispositivo) {
+          dispositivo.estado = 'inactivo';
+          await dispositivo.save();
+          logger(`📴 LWT: ${data.sensorId} marcado como inactivo`);
+        } else {
+          logger(`⚠️ LWT: dispositivo ${data.sensorId} no encontrado en BD`);
+        }
+        return;
+      }
+
       const rawData = JSON.parse(message.toString());
       logger(`📨 Mensaje recibido: ${message.toString()}`);
       
@@ -41,10 +59,23 @@ function connectMQTT() {
       // Extraer valores ambientales (todos los campos excepto metadata)
       const valores = new Map();
       const camposExcluidos = ['sensorId', 'zona', 'timestamp', 'version', 'calidad', 'metadata', 'tipo', 'fuente'];
-      
+
+      const PARAM_VARIANTES = {
+        temperatura: ['temp', 'temperature', 'temperatura'],
+        humedad: ['hum', 'humidity', 'humedad'],
+        // Futuros: pm25: ['pm25', 'pm2.5'], etc.
+      };
+      const aliasToCanonical = {};
+      Object.entries(PARAM_VARIANTES).forEach(([canonical, variantes]) => {
+        variantes.forEach(v => { aliasToCanonical[v] = canonical; });
+      });
+
+      // const aliasToCanonical = { temp: 'temperatura', temperature: 'temperatura', humidity: 'humedad' };
+
       Object.keys(rawData).forEach(key => {
         if (!camposExcluidos.includes(key) && typeof rawData[key] === 'number') {
-          valores.set(key, rawData[key]);
+          const canonical = aliasToCanonical[key] || key;
+          if (!valores.has(canonical)) valores.set(canonical, rawData[key]);
         }
       });
 
@@ -53,13 +84,29 @@ function connectMQTT() {
         return;
       }
 
-      // Crear lectura con nuevo schema
-      const lectura = new Lectura({
+      const zonaNombre = rawData.zona || dispositivo.zona;
+
+      // Resolver zonaId si el dispositivo no lo tiene (legacy)
+      let zonaId = dispositivo.zonaId;
+      if (!zonaId && zonaNombre && dispositivo.empresa) {
+        const Zona = require('../db/Zona');
+        let z = await Zona.findOne({ nombre: zonaNombre, empresaId: dispositivo.empresa });
+        if (!z) {
+          z = new Zona({ nombre: zonaNombre, empresaId: dispositivo.empresa, descripcion: `Zona: ${zonaNombre}`, esPublica: false });
+          await z.save();
+        }
+        zonaId = z._id;
+        dispositivo.zonaId = zonaId;
+      }
+
+      const { aqi, parametro: aqiParametro } = calcularAQI(valores);
+
+      const lecturaData = {
         sensorId: rawData.sensorId,
         empresaId: dispositivo.empresa,
         dispositivoId: dispositivo._id,
         timestamp: rawData.timestamp ? new Date(rawData.timestamp) : new Date(),
-        zona: rawData.zona || dispositivo.zona,
+        zona: zonaNombre,
         valores: valores,
         version: rawData.version,
         calidad: rawData.calidad,
@@ -67,7 +114,17 @@ function connectMQTT() {
           tipo: rawData.metadata?.tipo || 'telemetria',
           fuente: rawData.metadata?.fuente || 'mqtt'
         }
-      });
+      };
+
+      if (aqi != null) {
+        lecturaData.aqi = aqi;
+        lecturaData.aqiParametro = aqiParametro;
+      }
+      if (zonaId) {
+        lecturaData.zonaId = zonaId;
+      }
+
+      const lectura = new Lectura(lecturaData);
 
       await lectura.save();
 
@@ -76,7 +133,7 @@ function connectMQTT() {
       dispositivo.estado = 'activo';
       await dispositivo.save();
 
-      logger(`✅ Lectura guardada: ${rawData.sensorId} (${valores.size} parámetros)`);
+      logger(`✅ Lectura guardada: ${rawData.sensorId} (${valores.size} parámetros)${aqi != null ? ` AQI: ${aqi}` : ''}`);
     } catch (err) {
       logger('❌ Error al procesar mensaje MQTT:', err);
     }

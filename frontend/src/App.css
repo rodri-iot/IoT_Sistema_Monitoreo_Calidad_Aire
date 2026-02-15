@@ -1,7 +1,26 @@
 /* App.css - Sistema de Monitoreo Ambiental IoT */
 
-/* Design Tokens */
-:root {
+/* Design Tokens - Tema Oscuro (default) */
+:root,
+[data-theme="dark"] {
+  --color-good: #2ECC71;
+  --color-moderate: #F1C40F;
+  --color-dangerous: #E67E22;
+  --color-critical: #E74C3C;
+  --color-text-primary: #ecf0f1;
+  --color-text-secondary: #bdc3c7;
+  --color-bg-light: #1a1a2e;
+  --color-bg-card: #16213e;
+  --color-border: #2c3e50;
+  --color-nav-bg: #0f0f1a;
+  --color-nav-text: #ecf0f1;
+  --shadow-soft: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-card: 0 2px 6px rgba(0,0,0,0.25);
+  --border-radius: 12px;
+}
+
+/* Tema Claro */
+[data-theme="light"] {
   --color-good: #2ECC71;
   --color-moderate: #F1C40F;
   --color-dangerous: #E67E22;
@@ -9,7 +28,10 @@
   --color-text-primary: #2c3e50;
   --color-text-secondary: #7f8c8d;
   --color-bg-light: #f5f5f5;
+  --color-bg-card: #ffffff;
   --color-border: #ecf0f1;
+  --color-nav-bg: #2c3e50;
+  --color-nav-text: #ecf0f1;
   --shadow-soft: 0 2px 8px rgba(0,0,0,0.1);
   --shadow-card: 0 2px 6px rgba(0,0,0,0.08);
   --border-radius: 12px;
@@ -43,7 +65,7 @@ body {
 }
 
 .modal-content {
-  background: white;
+  background: var(--color-bg-card);
   padding: 2rem;
   border-radius: var(--border-radius);
   width: 400px;
@@ -55,6 +77,33 @@ input, select {
   display: block;
   width: 100%;
   margin-bottom: 1rem;
+}
+
+/* Labels encima de inputs en modales (evita superposición) */
+.modal-content .input-field,
+.modal-overlay .input-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+.modal-content .input-field label,
+.modal-overlay .input-field label {
+  order: -1;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  transform: none !important;
+  position: static !important;
+}
+.modal-content .input-field input,
+.modal-content .input-field select,
+.modal-content .input-field textarea,
+.modal-overlay .input-field input,
+.modal-overlay .input-field select,
+.modal-overlay .input-field textarea {
+  width: 100%;
+  margin-bottom: 0;
 }
 
 /* Badges de calidad del aire */

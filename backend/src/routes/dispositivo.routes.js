@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { authMiddleware, requireRole } = require('../middleware/authMiddleware')
+const { authMiddleware, requireRoles } = require('../middleware/authMiddleware')
 const {
   crearDispositivo,
   listarDispositivos,
@@ -11,8 +11,8 @@ const {
 router.use(authMiddleware)
 
 router.get('/', listarDispositivos)
-router.post('/', requireRole('admin'), crearDispositivo)
-router.put('/:id', requireRole('admin'), editarDispositivo)
-router.delete('/:id', requireRole('admin'), eliminarDispositivo)
+router.post('/', requireRoles(['admin', 'superadmin']), crearDispositivo)
+router.put('/:id', requireRoles(['admin', 'superadmin']), editarDispositivo)
+router.delete('/:id', requireRoles(['admin', 'superadmin']), eliminarDispositivo)
 
 module.exports = router

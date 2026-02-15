@@ -1,165 +1,128 @@
 import { useContext } from 'react'
 import { AuthContext } from '../context/AuthContext'
-import { Link, useLocation } from 'react-router-dom'
+import { ThemeContext } from '../context/ThemeContext'
+import { Link } from 'react-router-dom'
 
 export default function Navbar() {
   const { user, logout } = useContext(AuthContext)
-  const location = useLocation()
-
-  const isActive = (path) => location.pathname === path
+  const { theme, toggleTheme } = useContext(ThemeContext)
 
   return (
-    <nav style={{ 
-      backgroundColor: '#2c3e50',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-      padding: '0 2rem'
+    <nav style={{
+      backgroundColor: 'var(--color-nav-bg)',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+      padding: '0 1.5rem',
+      minHeight: 64,
+      display: 'flex',
+      alignItems: 'center'
     }}>
-      <div className="nav-wrapper" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Link to="/" className="brand-logo" style={{ 
-          fontSize: '1.5rem',
-          fontWeight: 700,
-          color: '#ecf0f1',
-          textDecoration: 'none'
-        }}>
-          SMCA
-        </Link>
-        
-        <ul style={{ 
-          display: 'flex', 
-          listStyle: 'none', 
-          margin: 0, 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        maxWidth: '100%',
+        gap: '1.5rem'
+      }}>
+        {/* Logo y empresa - izquierda */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+          <Link
+            to={user ? '/' : '/public'}
+            style={{
+              fontSize: '1.4rem',
+              fontWeight: 700,
+              color: 'var(--color-nav-text)',
+              textDecoration: 'none'
+            }}
+          >
+            SMCA
+          </Link>
+          {user?.empresa && (
+            <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-nav-text)', opacity: 0.95 }}>
+              | {user.empresa}
+            </span>
+          )}
+        </div>
+
+        {/* Espacio central - menú está en Sidenav */}
+        <div style={{ flex: 1 }} />
+
+        {/* Derecha: tema (siempre) + Login o usuario + salir */}
+        <ul style={{
+          display: 'flex',
+          listStyle: 'none',
+          margin: 0,
           padding: 0,
           alignItems: 'center',
-          gap: '1.5rem'
+          gap: '0.75rem',
+          flexShrink: 0
         }}>
-          {user && (
+          <li>
+            <button
+              onClick={toggleTheme}
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.3)',
+                color: 'var(--color-nav-text)',
+                padding: '0.3rem 0.5rem',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: '0.9rem'
+              }}
+              title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+          </li>
+          {user ? (
             <>
               <li>
-                <Link 
-                  to="/" 
-                  style={{ 
-                    color: isActive('/') ? '#2ECC71' : '#ecf0f1',
-                    textDecoration: 'none',
-                    fontWeight: isActive('/') ? 600 : 400,
-                    borderBottom: isActive('/') ? '2px solid #2ECC71' : 'none',
-                    paddingBottom: '0.5rem'
-                  }}
-                >
-                  Dashboard
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/zonas" 
-                  style={{ 
-                    color: isActive('/zonas') ? '#2ECC71' : '#ecf0f1',
-                    textDecoration: 'none',
-                    fontWeight: isActive('/zonas') ? 600 : 400,
-                    borderBottom: isActive('/zonas') ? '2px solid #2ECC71' : 'none',
-                    paddingBottom: '0.5rem'
-                  }}
-                >
-                  Zonas
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/dispositivos" 
-                  style={{ 
-                    color: isActive('/dispositivos') ? '#2ECC71' : '#ecf0f1',
-                    textDecoration: 'none',
-                    fontWeight: isActive('/dispositivos') ? 600 : 400,
-                    borderBottom: isActive('/dispositivos') ? '2px solid #2ECC71' : 'none',
-                    paddingBottom: '0.5rem'
-                  }}
-                >
-                  Dispositivos
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/lecturas" 
-                  style={{ 
-                    color: isActive('/lecturas') ? '#2ECC71' : '#ecf0f1',
-                    textDecoration: 'none',
-                    fontWeight: isActive('/lecturas') ? 600 : 400,
-                    borderBottom: isActive('/lecturas') ? '2px solid #2ECC71' : 'none',
-                    paddingBottom: '0.5rem'
-                  }}
-                >
-                  Históricos
-                </Link>
-              </li>
-              
-              {user.rol === 'superadmin' && (
-                <li>
-                  <Link 
-                    to="/admin/empresas" 
-                    style={{ 
-                      color: isActive('/admin/empresas') ? '#2ECC71' : '#ecf0f1',
-                      textDecoration: 'none',
-                      fontWeight: isActive('/admin/empresas') ? 600 : 400,
-                      borderBottom: isActive('/admin/empresas') ? '2px solid #2ECC71' : 'none',
-                      paddingBottom: '0.5rem'
-                    }}
-                  >
-                    Empresas
-                  </Link>
-                </li>
-              )}
-
-              <li style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '1rem',
-                marginLeft: '1rem',
-                paddingLeft: '1rem',
-                borderLeft: '1px solid rgba(255,255,255,0.2)'
-              }}>
-                <span style={{ 
-                  color: '#ecf0f1', 
-                  fontSize: '0.9rem'
-                }}>
+                <span style={{ color: 'var(--color-nav-text)', fontSize: '0.85rem' }}>
                   {user.correo}
                 </span>
-                <span style={{ 
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '20px',
-                  backgroundColor: user.rol === 'superadmin' ? '#E74C3C' : 
-                                   user.rol === 'admin' ? '#3498db' : '#95a5a6',
+              </li>
+              <li>
+                <span style={{
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: 12,
+                  backgroundColor: user.rol === 'superadmin' ? '#E74C3C' :
+                    user.rol === 'admin' ? '#3498db' : '#95a5a6',
                   color: 'white',
-                  fontSize: '0.75rem',
+                  fontSize: '0.7rem',
                   fontWeight: 600
                 }}>
                   {user.rol?.toUpperCase()}
                 </span>
-                <button 
+              </li>
+              <li>
+                <button
                   onClick={logout}
                   style={{
                     backgroundColor: '#E74C3C',
                     color: 'white',
                     border: 'none',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '6px',
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: 6,
                     cursor: 'pointer',
                     fontWeight: 500,
-                    fontSize: '0.9rem'
+                    fontSize: '0.85rem'
                   }}
                 >
                   Salir
                 </button>
               </li>
             </>
-          )}
-          
-          {!user && (
+          ) : (
             <li>
-              <Link 
-                to="/login" 
-                style={{ 
-                  color: '#ecf0f1',
+              <Link
+                to="/login"
+                style={{
+                  color: 'var(--color-nav-text)',
                   textDecoration: 'none',
-                  fontWeight: 500
+                  fontWeight: 500,
+                  padding: '0.4rem 0.8rem',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  borderRadius: 6
                 }}
               >
                 Login

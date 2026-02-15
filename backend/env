@@ -8,6 +8,7 @@ MONGO_URI=mongodb://mongo:27017/smca
 # MQTT broker con TLS
 MQTT_HOST=mqtts://mosquitto:8883
 MQTT_TOPIC=iot/aire/lectura
+MQTT_TOPIC_LWT=iot/aire/status
 CLIENT_ID=backend_smca
 
 # Rutas de certificados TLS (dentro del contenedor)

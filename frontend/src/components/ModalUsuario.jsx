@@ -84,11 +84,13 @@ export default function ModalUsuario({ usuario, onClose, onSave, token, actualiz
               value={rol}
               onChange={(e) => setRol(e.target.value)}
               required
+              style={{ color: 'var(--color-text-primary)' }}
             >
               <option value="admin">Admin</option>
               <option value="supervisor">Supervisor</option>
               <option value="superadmin">Superadmin</option>
             </select>
+            <label>Rol</label>
           </div>
           <div className="input-field">
             <input
