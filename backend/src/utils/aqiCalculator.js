@@ -84,7 +84,7 @@ function calcularAQI(valores) {
 
   const obj = valores instanceof Map ? Object.fromEntries(valores) : valores;
   const params = ['pm25', 'pm10', 'no2', 'co'];
-  let maxAqi = 0;
+  let maxAqi = -1;
   let maxParam = null;
 
   for (const p of params) {
@@ -102,7 +102,7 @@ function calcularAQI(valores) {
     }
   }
 
-  if (maxAqi === 0 && maxParam === null) return { aqi: null, parametro: null };
+  if (maxAqi < 0) return { aqi: null, parametro: null };
   return { aqi: maxAqi, parametro: maxParam };
 }
 

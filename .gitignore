@@ -29,6 +29,7 @@ backend/certs/
 **/log/
 **/logs/
 **/__pycache__/
+docs/
 
 # Archivos de VS Code / IDEs
 .vscode/
