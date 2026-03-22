@@ -31,6 +31,12 @@ app.use('/api/dispositivos', dispositivoRoutes)
 const zonaRoutes = require('./routes/zona.routes')
 app.use('/api/zonas', zonaRoutes)
 
+const sseRoutes = require('./routes/sse.routes')
+app.use('/api/sse', sseRoutes)
+
+const publicoRoutes = require('./routes/publico.routes')
+app.use('/api/publico', publicoRoutes)
+
 // Rutas
 app.use('/api/lecturas', lecturaRoutes);
 

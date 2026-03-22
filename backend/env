@@ -2,6 +2,10 @@
 # Puerto del backend
 PORT=3000
 
+# Zona horaria IANA para agregaciones Mongo ($dateTrunc) y criterio de "día calendario" del negocio (LATAM).
+# No cambiar por región AWS (ej. us-east-1): el servidor puede estar en UTC; el huso es el del producto.
+APP_TIMEZONE=America/Argentina/Buenos_Aires
+
 # MongoDB local (usado en docker-compose)
 MONGO_URI=mongodb://mongo:27017/smca
 

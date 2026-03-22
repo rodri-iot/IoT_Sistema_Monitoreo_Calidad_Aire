@@ -16,6 +16,41 @@ async function resolverEmpresaId(val) {
   return emp ? emp._id : null;
 }
 
+/**
+ * Expresión $dateTrunc para agrupar lecturas en la zona IANA del negocio (APP_TIMEZONE).
+ * Semana: inicio según MongoDB en esa zona (típicamente lunes ISO).
+ */
+function buildBucketTruncExpr(agrupacionVal, timezone) {
+  const tz = timezone || 'America/Argentina/Buenos_Aires';
+  const base = { date: '$timestamp', timezone: tz };
+  switch (agrupacionVal) {
+    case 'minuto':
+      return { $dateTrunc: { ...base, unit: 'minute', binSize: 1 } };
+    case '5min':
+    case 'cincomin':
+      return { $dateTrunc: { ...base, unit: 'minute', binSize: 5 } };
+    case '10min':
+      return { $dateTrunc: { ...base, unit: 'minute', binSize: 10 } };
+    case '30min':
+      return { $dateTrunc: { ...base, unit: 'minute', binSize: 30 } };
+    case '4h':
+      return { $dateTrunc: { ...base, unit: 'hour', binSize: 4 } };
+    case '8h':
+      return { $dateTrunc: { ...base, unit: 'hour', binSize: 8 } };
+    case 'dia':
+      return { $dateTrunc: { ...base, unit: 'day', binSize: 1 } };
+    case 'semana':
+      return { $dateTrunc: { ...base, unit: 'week', binSize: 1 } };
+    case 'mes':
+      return { $dateTrunc: { ...base, unit: 'month', binSize: 1 } };
+    case 'año':
+    case 'anio':
+      return { $dateTrunc: { ...base, unit: 'year', binSize: 1 } };
+    default:
+      return { $dateTrunc: { ...base, unit: 'hour', binSize: 1 } };
+  }
+}
+
 // Obtener las últimas N lecturas (filtradas por empresa del usuario)
 async function obtenerUltimas(req, res) {
   try {
@@ -219,51 +254,8 @@ async function obtenerAgregadas(req, res) {
       if (hasta) filter.timestamp.$lte = new Date(hasta);
     }
 
-    let dateFormat;
-    if (agrupacionVal === 'minuto') dateFormat = { year: { $year: '$timestamp' }, month: { $month: '$timestamp' }, day: { $dayOfMonth: '$timestamp' }, hour: { $hour: '$timestamp' }, minute: { $minute: '$timestamp' } };
-    else if (agrupacionVal === '5min' || agrupacionVal === 'cincomin') {
-      dateFormat = {
-        year: { $year: '$timestamp' },
-        month: { $month: '$timestamp' },
-        day: { $dayOfMonth: '$timestamp' },
-        hour: { $hour: '$timestamp' },
-        minuteBucket: { $multiply: [{ $floor: { $divide: [{ $minute: '$timestamp' }, 5] } }, 5] }
-      };
-    } else if (agrupacionVal === '10min') {
-      dateFormat = {
-        year: { $year: '$timestamp' },
-        month: { $month: '$timestamp' },
-        day: { $dayOfMonth: '$timestamp' },
-        hour: { $hour: '$timestamp' },
-        minuteBucket: { $multiply: [{ $floor: { $divide: [{ $minute: '$timestamp' }, 10] } }, 10] }
-      };
-    } else if (agrupacionVal === '30min') {
-      dateFormat = {
-        year: { $year: '$timestamp' },
-        month: { $month: '$timestamp' },
-        day: { $dayOfMonth: '$timestamp' },
-        hour: { $hour: '$timestamp' },
-        minuteBucket: { $multiply: [{ $floor: { $divide: [{ $minute: '$timestamp' }, 30] } }, 30] }
-      };
-    } else if (agrupacionVal === '4h') {
-      dateFormat = {
-        year: { $year: '$timestamp' },
-        month: { $month: '$timestamp' },
-        day: { $dayOfMonth: '$timestamp' },
-        hourBucket: { $multiply: [{ $floor: { $divide: [{ $hour: '$timestamp' }, 4] } }, 4] }
-      };
-    } else if (agrupacionVal === '8h') {
-      dateFormat = {
-        year: { $year: '$timestamp' },
-        month: { $month: '$timestamp' },
-        day: { $dayOfMonth: '$timestamp' },
-        hourBucket: { $multiply: [{ $floor: { $divide: [{ $hour: '$timestamp' }, 8] } }, 8] }
-      };
-    } else if (agrupacionVal === 'dia') dateFormat = { year: { $year: '$timestamp' }, month: { $month: '$timestamp' }, day: { $dayOfMonth: '$timestamp' } };
-    else if (agrupacionVal === 'semana') dateFormat = { year: { $year: '$timestamp' }, week: { $week: '$timestamp' } };
-    else if (agrupacionVal === 'mes') dateFormat = { year: { $year: '$timestamp' }, month: { $month: '$timestamp' } };
-    else if (agrupacionVal === 'año' || agrupacionVal === 'anio') dateFormat = { year: { $year: '$timestamp' } };
-    else dateFormat = { year: { $year: '$timestamp' }, month: { $month: '$timestamp' }, day: { $dayOfMonth: '$timestamp' }, hour: { $hour: '$timestamp' } };
+    const appTz = process.env.APP_TIMEZONE || 'America/Argentina/Buenos_Aires';
+    const bucketExpr = buildBucketTruncExpr(agrupacionVal, appTz);
 
     if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_AGREGADAS) {
       console.log('[agregadas] filter', JSON.stringify(filter));
@@ -271,13 +263,10 @@ async function obtenerAgregadas(req, res) {
 
     let pipeline;
     if (operacionVal === 'max') {
-      const sortByBucket = {};
-      Object.keys(dateFormat).forEach(k => { sortByBucket['bucket.' + k] = 1; });
-      sortByBucket.aqi = -1;
       pipeline = [
         { $match: filter },
-        { $addFields: { bucket: dateFormat } },
-        { $sort: sortByBucket },
+        { $addFields: { bucket: bucketExpr } },
+        { $sort: { bucket: 1, aqi: -1 } },
         {
           $group: {
             _id: '$bucket',
@@ -288,6 +277,7 @@ async function obtenerAgregadas(req, res) {
             avgPm10: { $first: '$valores.pm10' },
             avgNo2: { $first: '$valores.no2' },
             avgCo: { $first: '$valores.co' },
+            avgNh3: { $first: '$valores.nh3' },
             avgCo2: { $first: '$valores.co2' },
             avgTvoc: { $first: '$valores.tvoc' },
             avgTemp: { $first: '$valores.temperatura' },
@@ -300,9 +290,10 @@ async function obtenerAgregadas(req, res) {
     } else {
       pipeline = [
         { $match: filter },
+        { $addFields: { bucket: bucketExpr } },
         {
           $group: {
-            _id: dateFormat,
+            _id: '$bucket',
             avgAqi: { $avg: '$aqi' },
             maxAqi: { $max: '$aqi' },
             minAqi: { $min: '$aqi' },
@@ -310,6 +301,7 @@ async function obtenerAgregadas(req, res) {
             avgPm10: { $avg: '$valores.pm10' },
             avgNo2: { $avg: '$valores.no2' },
             avgCo: { $avg: '$valores.co' },
+            avgNh3: { $avg: '$valores.nh3' },
             avgCo2: { $avg: '$valores.co2' },
             avgTvoc: { $avg: '$valores.tvoc' },
             avgTemp: { $avg: '$valores.temperatura' },

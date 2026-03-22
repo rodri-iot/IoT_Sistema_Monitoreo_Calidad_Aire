@@ -4,15 +4,7 @@ import { AuthContext } from '../context/AuthContext'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { getAQIColor, getAQILabel, AQI_SCALE } from '../utils/aqiScale'
 import AQIScaleReference from '../components/AQIScaleReference'
-
-function formatAggLabel(d) {
-  if (!d) return ''
-  const day = d.day != null ? String(d.day).padStart(2, '0') : '01'
-  const month = String(d.month || 1).padStart(2, '0')
-  const hour = d.hour != null ? String(d.hour).padStart(2, '0') : '00'
-  const min = d.minuteBucket != null ? d.minuteBucket : d.minute
-  return `${day}/${month} ${hour}:${String(min ?? 0).padStart(2, '0')}`
-}
+import { formatChartBucketLabel } from '../utils/dateTime'
 
 export default function Dashboard() {
   const { user, token } = useContext(AuthContext)
@@ -68,7 +60,7 @@ export default function Dashboard() {
         top3.forEach((z, idx) => {
           const arr = aggArrays[idx] || []
           arr.forEach(r => {
-            const label = formatAggLabel(r._id)
+            const label = formatChartBucketLabel(r._id, '5min')
             if (!labelToPoint[label]) labelToPoint[label] = { label }
             labelToPoint[label][z.nombre] = r.avgAqi != null ? Math.round(r.avgAqi) : null
           })

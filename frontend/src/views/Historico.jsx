@@ -2,8 +2,10 @@ import React, { useEffect, useState, useContext } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, BarChart, Bar } from 'recharts'
-import { getAQIColor, getAQILabel } from '../utils/aqiScale'
+import { getAQIColor, getAQILabel, getAqiParametroLabel, formatSensorValue } from '../utils/aqiScale'
 import AQIScaleReference from '../components/AQIScaleReference'
+import AqiPollutantLimitsNote from '../components/AqiPollutantLimitsNote'
+import { getTodayDateString, getDesdeHasta, formatChartBucketLabel, formatDateTimeAR, formatDateOnlyDisplay, parseDateDisplayToIso } from '../utils/dateTime'
 
 const getValores = (lectura) => {
   const v = lectura?.valores
@@ -13,18 +15,6 @@ const getValores = (lectura) => {
 }
 const getTemp = (v) => v?.temperatura ?? v?.temp ?? v?.temperature
 const getHumedad = (v) => v?.humedad ?? v?.humidity ?? v?.hum
-
-const formatAggLabel = (id) => {
-  if (!id) return ''
-  const d = id.day != null ? String(id.day).padStart(2, '0') : ''
-  const m = id.month ? String(id.month).padStart(2, '0') : ''
-  const h = id.hour != null ? String(id.hour).padStart(2, '0') : ''
-  const min = id.minuteBucket != null ? id.minuteBucket : id.minute
-  if (h) return `${d || '01'}/${m || '01'} ${h}:${String(min ?? 0).padStart(2, '0')}`
-  if (d) return `${d}/${m || '01'}`
-  if (m) return `${id.year || ''}-${m}`
-  return String(id.year || '')
-}
 
 const AGRUPACION_OPCIONES = [
   { value: 'minuto', label: 'Minuto' },
@@ -61,33 +51,6 @@ function isMqttConectado(dispositivo) {
   return ultima >= hace5min
 }
 
-function getTodayDateString() {
-  const t = new Date()
-  return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0')
-}
-
-function getDesdeHasta(fechaDesde, fechaHasta) {
-  const today = getTodayDateString()
-  let desde, hasta
-  if (fechaDesde) {
-    desde = new Date(fechaDesde + 'T00:00:00')
-  } else {
-    desde = new Date()
-    desde.setHours(desde.getHours() - 24)
-  }
-  if (fechaHasta) {
-    if (fechaHasta === today) {
-      hasta = new Date()
-    } else {
-      hasta = new Date(fechaHasta + 'T00:00:00')
-      hasta.setHours(23, 59, 59, 999)
-    }
-  } else {
-    hasta = new Date()
-  }
-  return { desde, hasta }
-}
-
 export default function Historico() {
   const { token, fetchWithAuth } = useContext(AuthContext)
   const [searchParams] = useSearchParams()
@@ -105,9 +68,11 @@ export default function Historico() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const [agrupacion, setAgrupacion] = useState('minuto')
+  const [agrupacion, setAgrupacion] = useState('10min')
   const [fechaDesde, setFechaDesde] = useState(() => getTodayDateString())
   const [fechaHasta, setFechaHasta] = useState(() => getTodayDateString())
+  const [fechaDesdeText, setFechaDesdeText] = useState(() => formatDateOnlyDisplay(getTodayDateString()))
+  const [fechaHastaText, setFechaHastaText] = useState(() => formatDateOnlyDisplay(getTodayDateString()))
   const [zonaIdSeleccionada, setZonaIdSeleccionada] = useState('')
   const [dispositivoSeleccionado, setDispositivoSeleccionado] = useState(null)
   const [operacionGrafico, setOperacionGrafico] = useState('max')
@@ -115,9 +80,19 @@ export default function Historico() {
   const [filasPorPagina, setFilasPorPagina] = useState(50)
   const [refreshKey, setRefreshKey] = useState(0)
   const [showOperacionInfo, setShowOperacionInfo] = useState(false)
+  const [showUltimaLecturaInfo, setShowUltimaLecturaInfo] = useState(false)
   const [expandedChart, setExpandedChart] = useState(null)
+  const [showPmInfo, setShowPmInfo] = useState(false)
+  const [showGasesInfo, setShowGasesInfo] = useState(false)
 
   const zonaSeleccionada = zonas.find(z => z._id === zonaIdSeleccionada) || null
+
+  useEffect(() => {
+    setFechaDesdeText(formatDateOnlyDisplay(fechaDesde))
+  }, [fechaDesde])
+  useEffect(() => {
+    setFechaHastaText(formatDateOnlyDisplay(fechaHasta))
+  }, [fechaHasta])
 
   useEffect(() => {
     if (zonaParam && zonas.length > 0) {
@@ -132,9 +107,47 @@ export default function Historico() {
       fetchWithAuth('/api/dispositivos').then(r => r.ok ? r.json() : []).then(setDispositivos).catch(() => setDispositivos([]))
     }
     fetchData()
-    const interval = setInterval(fetchData, 30000)
+    const interval = setInterval(fetchData, 60000)
     return () => clearInterval(interval)
   }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    const url = `/api/sse/lecturas?token=${encodeURIComponent(token)}`
+    const es = new EventSource(url)
+
+    es.addEventListener('lectura', (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        setDispositivos(prev => prev.map(d =>
+          d.sensorId === data.sensorId ? { ...d, ultimaLectura: data.timestamp, estado: 'activo' } : d
+        ))
+        setPicoDispositivos(prev => {
+          const idx = prev.findIndex(p => p.sensorId === data.sensorId)
+          if (idx === -1) return [...prev, { sensorId: data.sensorId, aqi: data.aqi }]
+          if (data.aqi != null && (prev[idx].aqi == null || data.aqi > prev[idx].aqi)) {
+            const next = [...prev]
+            next[idx] = { ...next[idx], aqi: data.aqi, maxAQI: data.aqi }
+            return next
+          }
+          return prev
+        })
+        setRefreshKey(k => k + 1)
+      } catch { /* ignore parse errors */ }
+    })
+
+    es.addEventListener('status', (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        setDispositivos(prev => prev.map(d =>
+          d.sensorId === data.sensorId ? { ...d, estado: data.estado } : d
+        ))
+      } catch { /* ignore */ }
+    })
+
+    return () => es.close()
+  }, [token])
+
   useEffect(() => {
     if (sensorParam && dispositivos.length > 0) {
       const d = dispositivos.find(disp => disp.sensorId === sensorParam)
@@ -184,9 +197,9 @@ export default function Historico() {
     fetchWithAuth(`/api/lecturas/agregadas?${params}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setAgregadas(data.map(r => ({
-        label: formatAggLabel(r._id),
+        label: formatChartBucketLabel(r._id, agrupacion),
         AQI: r.avgAqi != null ? Math.round(r.avgAqi) : null,
-        PM25: r.avgPm25, PM10: r.avgPm10, NO2: r.avgNo2, CO: r.avgCo, CO2: r.avgCo2, TVOC: r.avgTvoc,
+        PM25: r.avgPm25, PM10: r.avgPm10, NO2: r.avgNo2, CO: r.avgCo, NH3: r.avgNh3, CO2: r.avgCo2, TVOC: r.avgTvoc,
         Temp: r.avgTemp, Humedad: r.avgHumedad
       }))))
       .catch(() => setAgregadas([]))
@@ -236,7 +249,7 @@ export default function Historico() {
         const byLabel = {}
         top5.forEach(({ dispositivo, data }) => {
           data.forEach(r => {
-            const label = formatAggLabel(r._id)
+            const label = formatChartBucketLabel(r._id, agrupacion)
             if (!byLabel[label]) byLabel[label] = { label }
             byLabel[label][dispositivo.nombre] = r.avgAqi != null ? Math.round(r.avgAqi) : null
           })
@@ -261,22 +274,29 @@ export default function Historico() {
 
   const exportarCSV = () => {
     if (lecturas.length === 0) { alert('No hay datos para exportar'); return }
-    const headers = ['Fecha', 'Sensor ID', 'Zona', 'AQI', 'PM2.5', 'PM10', 'NO2', 'CO', 'TVOC', 'CO2', 'Temperatura', 'Humedad']
+    const headers = ['Fecha', 'Sensor ID', 'Zona', 'AQI', 'Parámetro AQI', 'PM2.5', 'PM10', 'NO2', 'CO', 'NH3', 'TVOC', 'CO2', 'Temperatura', 'Humedad']
+    const csvNum = (raw, decimals = 1) => {
+      const s = formatSensorValue(raw, decimals)
+      return s === '—' ? '' : s
+    }
     const rows = lecturas.map(l => {
       const v = getValores(l)
+      const paramLabel = l.aqi != null && l.aqiParametro ? getAqiParametroLabel(l.aqiParametro) : ''
       return [
-        new Date(l.timestamp).toLocaleString('es-AR'),
+        formatDateTimeAR(l.timestamp),
         l.sensorId,
         l.zona || '',
         l.aqi ?? '',
-        v.pm25 ?? '',
-        v.pm10 ?? '',
-        v.no2 ?? '',
-        v.co ?? '',
-        v.tvoc ?? '',
-        v.co2 ?? '',
-        getTemp(v) ?? '',
-        getHumedad(v) ?? ''
+        paramLabel,
+        csvNum(v.pm25, 1),
+        csvNum(v.pm10, 1),
+        csvNum(v.no2, 1),
+        csvNum(v.co, 1),
+        csvNum(v.nh3, 3),
+        csvNum(v.tvoc, 1),
+        csvNum(v.co2, 1),
+        csvNum(getTemp(v), 1),
+        csvNum(getHumedad(v), 1)
       ]
     })
     const csv = [headers.join(','), ...rows.map(row => row.map(c => `"${c}"`).join(','))].join('\n')
@@ -297,6 +317,7 @@ export default function Historico() {
     { key: 'CO2', value: ultimosValores.co2 != null ? ultimosValores.co2 : null, unit: 'ppm', color: null },
     { key: 'CO', value: ultimosValores.co != null ? ultimosValores.co : null, unit: 'ppm', color: null },
     { key: 'NO2', value: ultimosValores.no2 != null ? ultimosValores.no2 : null, unit: 'ppm', color: null },
+    { key: 'NH3', value: ultimosValores.nh3 != null ? Number(ultimosValores.nh3).toFixed(2) : null, unit: 'ppm', color: null },
     { key: 'VOC', value: ultimosValores.tvoc != null ? ultimosValores.tvoc : null, unit: 'ppb', color: null },
     { key: 'Temp', value: getTemp(ultimosValores) != null ? Number(getTemp(ultimosValores)).toFixed(1) : null, unit: '°C', color: null },
     { key: 'Humedad', value: getHumedad(ultimosValores) != null ? Number(getHumedad(ultimosValores)).toFixed(1) : null, unit: '%', color: null }
@@ -305,7 +326,48 @@ export default function Historico() {
   const chart1 = agregadas.filter(d => d.AQI != null)
   const chart2 = agregadas.filter(d => d.Temp != null || d.Humedad != null)
   const chart3 = agregadas.filter(d => d.PM25 != null || d.PM10 != null)
+  const chartGases = agregadas.filter(d => d.NO2 != null || d.CO != null || d.NH3 != null)
   const chart4 = agregadas.filter(d => d.CO2 != null || d.TVOC != null)
+
+  /** Misma altura de fila de etiqueta en los 4 campos para que los inputs queden alineados. */
+  const filterLabelRowStyle = {
+    minHeight: '1.75rem',
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.35rem',
+    fontSize: '0.85rem',
+    color: 'var(--color-text-secondary)',
+    lineHeight: 1.25,
+    margin: 0
+  }
+  /** Misma caja para select e input (altura fija + padding simétrico) para evitar desfase entre motores. */
+  const filterControlStyle = {
+    width: '100%',
+    margin: 0,
+    padding: '0.4rem 0.5rem',
+    height: 40,
+    minHeight: 40,
+    maxHeight: 40,
+    borderRadius: 8,
+    border: '1px solid var(--color-border)',
+    backgroundColor: 'var(--color-bg-card)',
+    color: 'var(--color-text-primary)',
+    boxSizing: 'border-box',
+    fontSize: '0.9rem',
+    lineHeight: 1.25
+  }
+
+  const commitFechaDesde = () => {
+    const iso = parseDateDisplayToIso(fechaDesdeText)
+    if (iso) setFechaDesde(iso)
+    else setFechaDesdeText(formatDateOnlyDisplay(fechaDesde))
+  }
+  const commitFechaHasta = () => {
+    const iso = parseDateDisplayToIso(fechaHastaText)
+    if (iso) setFechaHasta(iso)
+    else setFechaHastaText(formatDateOnlyDisplay(fechaHasta))
+  }
 
   return (
     <div style={{ padding: '2rem 1rem', backgroundColor: 'var(--color-bg-light)', minHeight: '100%' }}>
@@ -316,55 +378,87 @@ export default function Historico() {
         </div>
 
         <div className="card" style={{ borderRadius: 'var(--border-radius)', backgroundColor: 'var(--color-bg-card)', padding: '1.5rem', marginBottom: '2rem' }}>
-          <div className="row" style={{ marginBottom: '1rem' }}>
-            <div className="col s12 m6 l3">
-              <label style={{ display: 'block', marginBottom: '0.35rem', minHeight: '1.25rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Temporalidad</label>
-              <select
-                value={agrupacion}
-                onChange={e => setAgrupacion(e.target.value)}
-                style={{ width: '100%', padding: '0.4rem 0.5rem', height: 40, borderRadius: 8, border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-primary)', boxSizing: 'border-box', fontSize: '0.9rem' }}
-              >
-                {AGRUPACION_OPCIONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+          {/*
+            Fila 1: fechas al mismo nivel. Fila 2: temporalidad y operación.
+            Sin alignItems:end en un único grid de 4 celdas (evita mezclar alturas de fila con auto-fit).
+          */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                <label htmlFor="hist-desde" style={filterLabelRowStyle}>Fecha desde</label>
+                <input
+                  id="hist-desde"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="dd/mm/aaaa"
+                  value={fechaDesdeText}
+                  onChange={e => setFechaDesdeText(e.target.value)}
+                  onBlur={commitFechaDesde}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitFechaDesde() } }}
+                  style={filterControlStyle}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                <label htmlFor="hist-hasta" style={filterLabelRowStyle}>Fecha hasta</label>
+                <input
+                  id="hist-hasta"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="dd/mm/aaaa"
+                  value={fechaHastaText}
+                  onChange={e => setFechaHastaText(e.target.value)}
+                  onBlur={commitFechaHasta}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commitFechaHasta() } }}
+                  style={filterControlStyle}
+                />
+              </div>
             </div>
-            <div className="col s12 m6 l3">
-              <label style={{ display: 'block', marginBottom: '0.35rem', minHeight: '1.25rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Fecha desde</label>
-              <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', height: 40, borderRadius: 8, border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-primary)', boxSizing: 'border-box', fontSize: '0.9rem' }} />
-            </div>
-            <div className="col s12 m6 l3">
-              <label style={{ display: 'block', marginBottom: '0.35rem', minHeight: '1.25rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Fecha hasta</label>
-              <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', height: 40, borderRadius: 8, border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-primary)', boxSizing: 'border-box', fontSize: '0.9rem' }} />
-            </div>
-            <div className="col s12 m6 l3">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.35rem', minHeight: '1.25rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                Valor por intervalo
-                <button
-                  type="button"
-                  onClick={() => setShowOperacionInfo(s => !s)}
-                  title="Sugerencia"
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    border: '1px solid var(--color-border)',
-                    backgroundColor: 'var(--color-bg-card)',
-                    color: 'var(--color-text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 0
-                  }}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                <label htmlFor="hist-agrupacion" style={filterLabelRowStyle}>Temporalidad</label>
+                <select
+                  id="hist-agrupacion"
+                  value={agrupacion}
+                  onChange={e => setAgrupacion(e.target.value)}
+                  style={filterControlStyle}
                 >
-                  i
-                </button>
-              </label>
-              <select value={operacionGrafico} onChange={e => setOperacionGrafico(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', height: 40, borderRadius: 8, border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-primary)', boxSizing: 'border-box', fontSize: '0.9rem' }}>
-                <option value="avg">Promedios</option>
-                <option value="max">Máximos</option>
-              </select>
+                  {AGRUPACION_OPCIONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                <label htmlFor="hist-operacion" style={filterLabelRowStyle}>
+                  <span>Valor por intervalo</span>
+                  <button
+                    type="button"
+                    onClick={e => { e.preventDefault(); setShowOperacionInfo(s => !s) }}
+                    title="Sugerencia"
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      border: '1px solid var(--color-border)',
+                      backgroundColor: 'var(--color-bg-card)',
+                      color: 'var(--color-text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      flexShrink: 0
+                    }}
+                  >
+                    i
+                  </button>
+                </label>
+                <select id="hist-operacion" value={operacionGrafico} onChange={e => setOperacionGrafico(e.target.value)} style={filterControlStyle}>
+                  <option value="avg">Promedios</option>
+                  <option value="max">Máximos</option>
+                </select>
+              </div>
             </div>
           </div>
           {showOperacionInfo && (
@@ -372,11 +466,6 @@ export default function Historico() {
               {getOperacionSugerencia(agrupacion)}
             </div>
           )}
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button className="btn blue darken-2" onClick={() => setRefreshKey(k => k + 1)}>Aplicar</button>
-            <button className="btn grey" onClick={() => { setFechaDesde(getTodayDateString()); setFechaHasta(getTodayDateString()); setAgrupacion('minuto'); setZonaIdSeleccionada(''); setDispositivoSeleccionado(null) }}>Limpiar</button>
-            {lecturas.length > 0 && <button className="btn green darken-2" onClick={exportarCSV}>Descargar reporte CSV</button>}
-          </div>
         </div>
 
         {error && (
@@ -529,16 +618,16 @@ export default function Historico() {
                   </div>
                   {top5LineData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={top5LineData}>
+                      <LineChart data={top5LineData} accessibilityLayer={false}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                         <XAxis dataKey="label" stroke="var(--color-text-secondary)" tick={{ fontSize: 10 }} minTickGap={50} />
                         <YAxis stroke="var(--color-text-secondary)" />
-                        <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} />
+                        <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} />
                         <Legend />
                         {[...new Set(top5LineData.flatMap(d => Object.keys(d).filter(k => k !== 'label')))].filter(k => k !== 'promedio').slice(0, 5).map((key, i) => (
-                          <Line key={key} type="monotone" dataKey={key} stroke={LINE_COLORS_5[i % LINE_COLORS_5.length]} strokeWidth={2} dot={{ r: 2 }} />
+                          <Line key={key} type="monotone" dataKey={key} stroke={LINE_COLORS_5[i % LINE_COLORS_5.length]} strokeWidth={2} dot={{ r: 2 }} animationDuration={200} />
                         ))}
-                        <Line key="promedio" type="monotone" dataKey="promedio" stroke="#95A5A6" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 2 }} name="AQI promedio zona" />
+                        <Line key="promedio" type="monotone" dataKey="promedio" stroke="#95A5A6" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 2 }} name="AQI promedio zona" animationDuration={200} />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
@@ -555,6 +644,38 @@ export default function Historico() {
                     No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.
                   </div>
                 )}
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                    Última lectura del dispositivo
+                    <button
+                      type="button"
+                      onClick={() => setShowUltimaLecturaInfo(s => !s)}
+                      title="Más información"
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        border: '1px solid var(--color-border)',
+                        backgroundColor: 'var(--color-bg-card)',
+                        color: 'var(--color-text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0
+                      }}
+                    >
+                      i
+                    </button>
+                  </label>
+                  {showUltimaLecturaInfo && (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                      Última lectura en el período seleccionado
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
                   {kpiParams.map(({ key, value, unit, color }) => (
                     <div key={key} style={{ padding: '0.75rem', borderRadius: 8, backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
@@ -565,10 +686,10 @@ export default function Historico() {
                   ))}
                 </div>
                 <div className="row">
-                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0 }}>Ambiente: Temp / Humedad</h6>{chart2.length > 0 && <button type="button" onClick={() => setExpandedChart('ambiente')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{chart2.length > 0 ? <ResponsiveContainer width="100%" height={160}><LineChart data={chart2}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip /><Line type="monotone" dataKey="Temp" stroke="#E74C3C" name="Temp" /><Line type="monotone" dataKey="Humedad" stroke="#3498db" name="Humedad" /></LineChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
-                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0 }}>Particulado: PM2.5 / PM10</h6>{chart3.length > 0 && <button type="button" onClick={() => setExpandedChart('particulado')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{chart3.length > 0 ? <ResponsiveContainer width="100%" height={160}><AreaChart data={chart3}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip /><Area type="monotone" dataKey="PM25" stroke="#2ECC71" fill="#2ECC71" fillOpacity={0.4} name="PM2.5" /><Area type="monotone" dataKey="PM10" stroke="#F1C40F" fill="#F1C40F" fillOpacity={0.4} name="PM10" /></AreaChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
-                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0 }}>Gases: NO2 / CO</h6>{chart3.length > 0 && <button type="button" onClick={() => setExpandedChart('gases')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{chart3.length > 0 ? <ResponsiveContainer width="100%" height={160}><LineChart data={chart3}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip /><Line type="stepAfter" dataKey="NO2" stroke="#E67E22" name="NO2" /><Line type="stepAfter" dataKey="CO" stroke="#E74C3C" name="CO" /></LineChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
-                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0 }}>CO2 / TVOC</h6>{chart4.length > 0 && <button type="button" onClick={() => setExpandedChart('co2tvoc')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{chart4.length > 0 ? <ResponsiveContainer width="100%" height={160}><BarChart data={chart4}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip /><Bar dataKey="CO2" fill="#3498db" name="CO2" /><Bar dataKey="TVOC" fill="#9b59b6" name="TVOC" /></BarChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
+                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0 }}>Ambiente: Temp / Humedad</h6>{chart2.length > 0 && <button type="button" onClick={() => setExpandedChart('ambiente')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{chart2.length > 0 ? <ResponsiveContainer width="100%" height={160}><LineChart data={chart2} accessibilityLayer={false}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} /><Legend wrapperStyle={{ fontSize: 11 }} /><Line type="monotone" dataKey="Temp" stroke="#E74C3C" name="Temp (°C)" animationDuration={200} /><Line type="monotone" dataKey="Humedad" stroke="#3498db" name="Humedad (%)" animationDuration={200} /></LineChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
+                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>Particulado: PM2.5 / PM10 <button type="button" onClick={() => setShowPmInfo(s => !s)} title="Límites de referencia EPA" style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>i</button></h6>{chart3.length > 0 && <button type="button" onClick={() => setExpandedChart('particulado')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{showPmInfo && <AqiPollutantLimitsNote variant="particulado" compact />}{chart3.length > 0 ? <ResponsiveContainer width="100%" height={160}><AreaChart data={chart3} accessibilityLayer={false}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} /><Legend wrapperStyle={{ fontSize: 11 }} /><Area type="monotone" dataKey="PM25" stroke="#2ECC71" fill="#2ECC71" fillOpacity={0.4} name="PM2.5 (µg/m³)" animationDuration={200} /><Area type="monotone" dataKey="PM10" stroke="#F1C40F" fill="#F1C40F" fillOpacity={0.4} name="PM10 (µg/m³)" animationDuration={200} /></AreaChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
+                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>Gases: NO2 / CO / NH3 <button type="button" onClick={() => setShowGasesInfo(s => !s)} title="Límites de referencia EPA" style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>i</button></h6>{chartGases.length > 0 && <button type="button" onClick={() => setExpandedChart('gases')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{showGasesInfo && <AqiPollutantLimitsNote variant="gases" compact />}{chartGases.length > 0 ? <ResponsiveContainer width="100%" height={160}><LineChart data={chartGases} accessibilityLayer={false}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} /><Legend wrapperStyle={{ fontSize: 11 }} /><Line type="stepAfter" dataKey="NO2" stroke="#E67E22" name="NO2" animationDuration={200} /><Line type="stepAfter" dataKey="CO" stroke="#E74C3C" name="CO" animationDuration={200} /><Line type="stepAfter" dataKey="NH3" stroke="#9b59b6" name="NH3" animationDuration={200} /></LineChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
+                  <div className="col s12 m6"><div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}><h6 style={{ margin: 0 }}>CO2 / TVOC</h6>{chart4.length > 0 && <button type="button" onClick={() => setExpandedChart('co2tvoc')} title="Expandir" style={{ padding: '0.2rem 0.35rem', fontSize: '0.7rem', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>⛶</button>}</div>{chart4.length > 0 ? <ResponsiveContainer width="100%" height={160}><BarChart data={chart4} accessibilityLayer={false}><XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={50} /><YAxis /><Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} /><Legend wrapperStyle={{ fontSize: 11 }} /><Bar dataKey="CO2" fill="#3498db" name="CO2 (ppm)" animationDuration={200} /><Bar dataKey="TVOC" fill="#9b59b6" name="TVOC (ppb)" animationDuration={200} /></BarChart></ResponsiveContainer> : <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '0.5rem', fontSize: '0.85rem' }}>No hay lecturas en el periodo seleccionado. Comprueba las fechas, que el dispositivo haya enviado datos, y pulsa Aplicar.</div>}</div></div>
                 </div>
                 <div className="card" style={{ borderRadius: 'var(--border-radius)', backgroundColor: 'var(--color-bg-card)', padding: '1.5rem', marginBottom: '2rem' }}>
                   <h6 style={{ margin: '0 0 0.25rem 0' }}>Tabla de lecturas</h6>
@@ -598,10 +719,12 @@ export default function Historico() {
                               <th>Sensor</th>
                               <th>Zona</th>
                               <th>AQI</th>
+                              <th>Parámetro AQI</th>
                               <th>PM2.5</th>
                               <th>PM10</th>
                               <th>NO2</th>
                               <th>CO</th>
+                              <th>NH3</th>
                               <th>TVOC</th>
                               <th>CO2</th>
                               <th>Temp</th>
@@ -614,7 +737,7 @@ export default function Historico() {
                               const nombreSensor = dispositivos.find(d => d.sensorId === l.sensorId)?.nombre ?? l.sensorId
                               return (
                                 <tr key={l._id}>
-                                  <td>{new Date(l.timestamp).toLocaleString('es-AR')}</td>
+                                  <td>{formatDateTimeAR(l.timestamp)}</td>
                                   <td>{nombreSensor}</td>
                                   <td style={{ fontFamily: 'monospace' }}>{l.sensorId}</td>
                                   <td>{l.zona || '—'}</td>
@@ -630,12 +753,14 @@ export default function Historico() {
                                       {l.aqi ?? '—'}
                                     </span>
                                   </td>
-                                  <td>{v.pm25 > 0 ? Number(v.pm25).toFixed(1) : '—'}</td>
-                                  <td>{v.pm10 > 0 ? Number(v.pm10).toFixed(1) : '-'}</td>
-                                  <td>{v.no2 > 0 ? Number(v.no2).toFixed(1) : '-'}</td>
-                                  <td>{v.co > 0 ? Number(v.co).toFixed(1) : '-'}</td>
-                                  <td>{v.tvoc > 0 ? Number(v.tvoc).toFixed(1) : '-'}</td>
-                                  <td>{v.co2 > 0 ? Number(v.co2).toFixed(1) : '-'}</td>
+                                  <td>{l.aqi != null && l.aqiParametro ? getAqiParametroLabel(l.aqiParametro) : '—'}</td>
+                                  <td>{formatSensorValue(v.pm25, 1)}</td>
+                                  <td>{formatSensorValue(v.pm10, 1)}</td>
+                                  <td>{formatSensorValue(v.no2, 1)}</td>
+                                  <td>{formatSensorValue(v.co, 1)}</td>
+                                  <td>{formatSensorValue(v.nh3, 3)}</td>
+                                  <td>{formatSensorValue(v.tvoc, 1)}</td>
+                                  <td>{formatSensorValue(v.co2, 1)}</td>
                                   <td>{getTemp(v) != null ? `${Number(getTemp(v)).toFixed(1)}°C` : '—'}</td>
                                   <td>{getHumedad(v) != null ? `${Number(getHumedad(v)).toFixed(1)}%` : '—'}</td>
                                 </tr>
@@ -696,80 +821,87 @@ export default function Historico() {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h5 style={{ margin: 0, color: 'var(--color-text-primary)' }}>
+              <h5 style={{ margin: 0, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {expandedChart === 'top5' && 'Top 5 dispositivos AQI'}
                 {expandedChart === 'ambiente' && 'Ambiente: Temp / Humedad'}
-                {expandedChart === 'particulado' && 'Particulado: PM2.5 / PM10'}
-                {expandedChart === 'gases' && 'Gases: NO2 / CO'}
+                {expandedChart === 'particulado' && <>Particulado: PM2.5 / PM10 <button type="button" onClick={() => setShowPmInfo(s => !s)} title="Límites de referencia EPA" style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>i</button></>}
+                {expandedChart === 'gases' && <>Gases: NO2 / CO / NH3 <button type="button" onClick={() => setShowGasesInfo(s => !s)} title="Límites de referencia EPA" style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>i</button></>}
                 {expandedChart === 'co2tvoc' && 'CO2 / TVOC'}
               </h5>
               <button type="button" onClick={() => setExpandedChart(null)} style={{ background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.35rem 0.75rem', cursor: 'pointer', color: 'var(--color-text-primary)', fontSize: '1rem' }}>Cerrar</button>
             </div>
-            <div style={{ flex: 1, minHeight: 0 }}>
+            <div style={{ flex: 1, minHeight: 300, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
               {expandedChart === 'top5' && top5LineData.length > 0 && (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={top5LineData}>
+                  <LineChart data={top5LineData} accessibilityLayer={false}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                     <XAxis dataKey="label" stroke="var(--color-text-secondary)" tick={{ fontSize: 11 }} minTickGap={50} />
                     <YAxis stroke="var(--color-text-secondary)" />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} />
                     <Legend />
                     {[...new Set(top5LineData.flatMap(d => Object.keys(d).filter(k => k !== 'label')))].filter(k => k !== 'promedio').slice(0, 5).map((key, i) => (
-                      <Line key={key} type="monotone" dataKey={key} stroke={LINE_COLORS_5[i % LINE_COLORS_5.length]} strokeWidth={2} dot={{ r: 3 }} />
+                      <Line key={key} type="monotone" dataKey={key} stroke={LINE_COLORS_5[i % LINE_COLORS_5.length]} strokeWidth={2} dot={{ r: 3 }} animationDuration={200} />
                     ))}
-                    <Line key="promedio" type="monotone" dataKey="promedio" stroke="#95A5A6" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} name="AQI promedio zona" />
+                    <Line key="promedio" type="monotone" dataKey="promedio" stroke="#95A5A6" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} name="AQI promedio zona" animationDuration={200} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
               {expandedChart === 'ambiente' && chart2.length > 0 && (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chart2}>
+                  <LineChart data={chart2} accessibilityLayer={false}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={50} />
                     <YAxis />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="Temp" stroke="#E74C3C" name="Temp" strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="Humedad" stroke="#3498db" name="Humedad" strokeWidth={2} dot={{ r: 3 }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Line type="monotone" dataKey="Temp" stroke="#E74C3C" name="Temp (°C)" strokeWidth={2} dot={{ r: 3 }} animationDuration={200} />
+                    <Line type="monotone" dataKey="Humedad" stroke="#3498db" name="Humedad (%)" strokeWidth={2} dot={{ r: 3 }} animationDuration={200} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
               {expandedChart === 'particulado' && chart3.length > 0 && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chart3}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={50} />
-                    <YAxis />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} />
-                    <Legend />
-                    <Area type="monotone" dataKey="PM25" stroke="#2ECC71" fill="#2ECC71" fillOpacity={0.4} name="PM2.5" strokeWidth={2} />
-                    <Area type="monotone" dataKey="PM10" stroke="#F1C40F" fill="#F1C40F" fillOpacity={0.4} name="PM10" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <>
+                  {showPmInfo && <AqiPollutantLimitsNote variant="particulado" />}
+                  <ResponsiveContainer width="100%" minHeight={280} height="100%">
+                    <AreaChart data={chart3} accessibilityLayer={false}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={50} />
+                      <YAxis />
+                      <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Area type="monotone" dataKey="PM25" stroke="#2ECC71" fill="#2ECC71" fillOpacity={0.4} name="PM2.5 (µg/m³)" strokeWidth={2} animationDuration={200} />
+                      <Area type="monotone" dataKey="PM10" stroke="#F1C40F" fill="#F1C40F" fillOpacity={0.4} name="PM10 (µg/m³)" strokeWidth={2} animationDuration={200} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </>
               )}
-              {expandedChart === 'gases' && chart3.length > 0 && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chart3}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={50} />
-                    <YAxis />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} />
-                    <Legend />
-                    <Line type="stepAfter" dataKey="NO2" stroke="#E67E22" name="NO2" strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="stepAfter" dataKey="CO" stroke="#E74C3C" name="CO" strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+              {expandedChart === 'gases' && chartGases.length > 0 && (
+                <>
+                  {showGasesInfo && <AqiPollutantLimitsNote variant="gases" />}
+                  <ResponsiveContainer width="100%" minHeight={280} height="100%">
+                    <LineChart data={chartGases} accessibilityLayer={false}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={50} />
+                      <YAxis />
+                      <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="stepAfter" dataKey="NO2" stroke="#E67E22" name="NO2" strokeWidth={2} dot={{ r: 3 }} animationDuration={200} />
+                      <Line type="stepAfter" dataKey="CO" stroke="#E74C3C" name="CO" strokeWidth={2} dot={{ r: 3 }} animationDuration={200} />
+                      <Line type="stepAfter" dataKey="NH3" stroke="#9b59b6" name="NH3" strokeWidth={2} dot={{ r: 3 }} animationDuration={200} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </>
               )}
               {expandedChart === 'co2tvoc' && chart4.length > 0 && (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chart4}>
+                  <BarChart data={chart4} accessibilityLayer={false}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={50} />
                     <YAxis />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} />
-                    <Legend />
-                    <Bar dataKey="CO2" fill="#3498db" name="CO2" />
-                    <Bar dataKey="TVOC" fill="#9b59b6" name="TVOC" />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }} cursor={{ stroke: 'var(--color-border)' }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="CO2" fill="#3498db" name="CO2 (ppm)" animationDuration={200} />
+                    <Bar dataKey="TVOC" fill="#9b59b6" name="TVOC (ppb)" animationDuration={200} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

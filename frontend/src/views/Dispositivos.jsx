@@ -4,6 +4,7 @@ import { AuthContext } from '../context/AuthContext'
 import ModalDispositivo from '../components/ModalDispositivo'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { getAQIColor, getAQILabel } from '../utils/aqiScale'
+import { formatChartBucketLabel } from '../utils/dateTime'
 
 function isMqttConectado(dispositivo) {
   if (!dispositivo) return false
@@ -13,15 +14,6 @@ function isMqttConectado(dispositivo) {
   const hace5min = new Date()
   hace5min.setMinutes(hace5min.getMinutes() - 5)
   return ultima >= hace5min
-}
-
-const formatAggLabel = (id) => {
-  if (!id) return ''
-  const d = id.day != null ? String(id.day).padStart(2, '0') : '01'
-  const m = String(id.month || 1).padStart(2, '0')
-  const h = id.hour != null ? String(id.hour).padStart(2, '0') : '00'
-  const min = id.minuteBucket != null ? id.minuteBucket : id.minute
-  return `${d}/${m} ${h}:${String(min ?? 0).padStart(2, '0')}`
 }
 
 export default function Dispositivos() {
@@ -143,7 +135,7 @@ export default function Dispositivos() {
       if (resZona.ok) {
         const data = await resZona.json()
         setAgregadasZona(data.map(r => ({
-          label: formatAggLabel(r._id),
+          label: formatChartBucketLabel(r._id, '5min'),
           AQI: r.avgAqi != null ? Math.round(r.avgAqi) : null
         })))
       }
@@ -153,7 +145,7 @@ export default function Dispositivos() {
         if (resDisp.ok) {
           const data = await resDisp.json()
           setAgregadasDispositivo(data.map(r => ({
-            label: formatAggLabel(r._id),
+            label: formatChartBucketLabel(r._id, '5min'),
             AQI: r.avgAqi != null ? Math.round(r.avgAqi) : null
           })))
         }
@@ -305,7 +297,7 @@ export default function Dispositivos() {
                           Ver histórico
                         </Link>
                         {canEdit && (
-                          <button className="btn btn-small grey" onClick={e => { e.stopPropagation(); setModalDispositivo(dispositivo) }}>Editar</button>
+                          <button className="btn btn-small btn-outline" onClick={e => { e.stopPropagation(); setModalDispositivo(dispositivo) }}>Editar</button>
                         )}
                         {canEdit && (
                           <button

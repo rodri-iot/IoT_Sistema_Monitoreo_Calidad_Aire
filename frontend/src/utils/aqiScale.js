@@ -36,3 +36,37 @@ export function getAQITier(aqi) {
   const n = Number(aqi)
   return AQI_SCALE.find(t => n >= t.min && n <= t.max) || null
 }
+
+/** Parámetro cuyo subíndice EPA define el AQI (coincide con backend aqiParametro). */
+const AQI_PARAM_LABELS = {
+  pm25: 'PM2.5',
+  pm10: 'PM10',
+  no2: 'NO₂',
+  co: 'CO',
+}
+
+/**
+ * Etiqueta legible para el campo aqiParametro de una lectura.
+ * @param {string|null|undefined} key
+ * @returns {string} etiqueta o cadena vacía si no aplica
+ */
+export function getAqiParametroLabel(key) {
+  if (key == null || key === '') return ''
+  const k = String(key).toLowerCase()
+  return AQI_PARAM_LABELS[k] || key
+}
+
+const EMPTY_CELL = '—'
+
+/**
+ * Formatea un valor de sensor para tabla/CSV: incluye 0 como dato válido.
+ * @param {unknown} raw
+ * @param {number} decimals
+ * @returns {string}
+ */
+export function formatSensorValue(raw, decimals = 1) {
+  if (raw == null || raw === '') return EMPTY_CELL
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return EMPTY_CELL
+  return n.toFixed(decimals)
+}

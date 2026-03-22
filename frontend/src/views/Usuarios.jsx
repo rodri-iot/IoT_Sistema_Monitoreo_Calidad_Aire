@@ -144,7 +144,7 @@ export default function Usuarios() {
                       <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{u.rol}</span></td>
                       <td>{u.empresa?.nombre || '-'}</td>
                       <td>
-                        <button className="btn btn-small grey" onClick={() => handleEditar(u)}>Editar</button>
+                        <button className="btn btn-small btn-outline" onClick={() => handleEditar(u)}>Editar</button>
                         {u._id?.toString() !== user?.id?.toString() && (
                           <button className="btn btn-small red" style={{ marginLeft: '0.5rem' }} onClick={() => handleEliminar(u)}>Eliminar</button>
                         )}

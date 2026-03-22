@@ -5,6 +5,7 @@ const Lectura = require('../db/Lectura');
 const Dispositivo = require('../db/Dispositivo');
 const { logger } = require('../utils/logger');
 const { calcularAQI } = require('../utils/aqiCalculator');
+const sseEmitter = require('../utils/sseEmitter');
 
 let client;
 
@@ -40,6 +41,7 @@ function connectMQTT() {
           dispositivo.estado = 'inactivo';
           await dispositivo.save();
           logger(`📴 LWT: ${data.sensorId} marcado como inactivo`);
+          sseEmitter.emit('status', { sensorId: data.sensorId, estado: 'inactivo' });
         } else {
           logger(`⚠️ LWT: dispositivo ${data.sensorId} no encontrado en BD`);
         }
@@ -132,6 +134,17 @@ function connectMQTT() {
       dispositivo.ultimaLectura = lectura.timestamp;
       dispositivo.estado = 'activo';
       await dispositivo.save();
+
+      sseEmitter.emit('lectura', {
+        sensorId: rawData.sensorId,
+        empresaId: String(dispositivo.empresa),
+        zonaId: zonaId ? String(zonaId) : null,
+        zona: zonaNombre,
+        aqi,
+        aqiParametro: aqi != null ? aqiParametro : null,
+        timestamp: lecturaData.timestamp,
+        valores: Object.fromEntries(valores)
+      });
 
       logger(`✅ Lectura guardada: ${rawData.sensorId} (${valores.size} parámetros)${aqi != null ? ` AQI: ${aqi}` : ''}`);
     } catch (err) {

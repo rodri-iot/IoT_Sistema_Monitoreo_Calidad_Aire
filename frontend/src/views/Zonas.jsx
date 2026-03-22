@@ -5,15 +5,7 @@ import ModalZona from '../components/ModalZona'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 import { getAQIColor, getAQILabel } from '../utils/aqiScale'
-
-function formatAggLabel(d) {
-  if (!d) return ''
-  const day = d.day != null ? String(d.day).padStart(2, '0') : '01'
-  const month = String(d.month || 1).padStart(2, '0')
-  const hour = d.hour != null ? String(d.hour).padStart(2, '0') : '00'
-  const min = d.minuteBucket != null ? d.minuteBucket : d.minute
-  return `${day}/${month} ${hour}:${String(min ?? 0).padStart(2, '0')}`
-}
+import { formatChartBucketLabel } from '../utils/dateTime'
 
 const LINE_COLORS = ['#2ECC71', '#3498db', '#9b59b6', '#E67E22', '#E74C3C']
 
@@ -68,7 +60,7 @@ export default function Zonas() {
         const byLabel = {}
         data.forEach((z, idx) => {
           (arrays[idx] || []).forEach(r => {
-            const label = formatAggLabel(r._id)
+            const label = formatChartBucketLabel(r._id, '10min')
             if (!byLabel[label]) byLabel[label] = { label }
             byLabel[label][z.nombre] = r.avgAqi != null ? Math.round(r.avgAqi) : null
           })
@@ -215,7 +207,7 @@ export default function Zonas() {
                         </Link>
                         {canEdit && (
                           <>
-                            <button className="btn btn-small grey" onClick={() => handleEditarZona(zona)}>Editar</button>
+                            <button className="btn btn-small btn-outline" onClick={() => handleEditarZona(zona)}>Editar</button>
                             <button className="btn btn-small red" onClick={() => handleEliminarZona(zona)}>Eliminar</button>
                           </>
                         )}

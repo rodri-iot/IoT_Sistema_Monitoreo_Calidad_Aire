@@ -1,6 +1,6 @@
 import { useState, useContext } from 'react'
 import { AuthContext } from '../context/AuthContext'
-import { Link, useLocation } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 
 const menuItems = [
   { path: '/', label: 'Inicio', icon: '🏠' },
@@ -17,7 +17,10 @@ export default function Sidenav() {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
 
-  const isActive = (path) => location.pathname === path
+  const getIsActive = (itemPath, navLinkIsActive) => {
+    if (itemPath === '/') return location.pathname === '/'
+    return navLinkIsActive
+  }
 
   if (!user) return null
 
@@ -26,29 +29,32 @@ export default function Sidenav() {
     return item.roles.includes(user.rol)
   })
 
-  const linkStyle = (path) => ({
+  const linkStyle = (isActive) => ({
     display: 'flex',
     alignItems: 'center',
     gap: collapsed ? 0 : '0.75rem',
     padding: collapsed ? '0.75rem' : '0.75rem 1.25rem',
-    color: isActive(path) ? '#2ECC71' : 'var(--color-text-primary)',
+    color: isActive ? '#ecf0f1' : 'var(--color-text-primary)',
     textDecoration: 'none',
-    fontWeight: isActive(path) ? 600 : 400,
-    borderLeft: isActive(path) ? '3px solid #2ECC71' : '3px solid transparent',
-    backgroundColor: isActive(path) ? 'rgba(46, 204, 113, 0.1)' : 'transparent',
+    fontWeight: isActive ? 600 : 400,
+    borderLeft: isActive ? '3px solid #3498db' : '3px solid transparent',
+    backgroundColor: isActive ? 'rgba(52, 152, 219, 0.15)' : 'transparent',
     justifyContent: collapsed ? 'center' : 'flex-start'
   })
 
   return (
-    <aside style={{
-      width: collapsed ? 64 : 240,
-      minWidth: collapsed ? 64 : 240,
-      backgroundColor: 'var(--color-bg-card)',
-      borderRight: '1px solid var(--color-border)',
-      padding: '1rem 0',
-      boxShadow: 'var(--shadow-soft)',
-      transition: 'width 0.2s ease'
-    }}>
+    <aside
+      className="app-sidenav"
+      style={{
+        width: collapsed ? 64 : 240,
+        minWidth: collapsed ? 64 : 240,
+        backgroundColor: 'var(--color-bg-card)',
+        borderRight: '1px solid var(--color-border)',
+        padding: '1rem 0',
+        boxShadow: 'var(--shadow-soft)',
+        transition: 'width 0.2s ease'
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end', padding: '0 0.5rem', marginBottom: '0.5rem' }}>
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -68,15 +74,17 @@ export default function Sidenav() {
       </div>
       <nav>
         {filteredItems.map((item) => (
-          <Link
+          <NavLink
             key={item.path}
             to={item.path}
-            style={linkStyle(item.path)}
+            end={true}
+            isActive={item.path === '/' ? () => location.pathname === '/' : undefined}
+            style={({ isActive }) => linkStyle(getIsActive(item.path, isActive))}
             title={collapsed ? item.label : undefined}
           >
-            <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>{item.icon}</span>
+            <span style={{ fontSize: '1.2rem', flexShrink: 0, opacity: 0.85 }}>{item.icon}</span>
             {!collapsed && <span>{item.label}</span>}
-          </Link>
+          </NavLink>
         ))}
       </nav>
     </aside>
