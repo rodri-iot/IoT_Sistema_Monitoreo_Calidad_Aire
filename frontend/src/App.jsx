@@ -23,7 +23,7 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Navbar />
-          <div style={{ display: 'flex', minHeight: 'calc(100vh - 64px)' }}>
+          <div className="app-shell">
             <Sidenav />
             <main style={{ flex: 1, overflow: 'auto' }}>
           <Routes>

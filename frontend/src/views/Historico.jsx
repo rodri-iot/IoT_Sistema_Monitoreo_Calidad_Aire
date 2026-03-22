@@ -701,7 +701,6 @@ export default function Historico() {
                         <option value={15}>15</option>
                         <option value={50}>50</option>
                         <option value={100}>100</option>
-                        <option value={500}>500</option>
                       </select>
                     </div>
                     <button className="btn btn-small green darken-2" onClick={exportarCSV}>Descargar reporte CSV</button>

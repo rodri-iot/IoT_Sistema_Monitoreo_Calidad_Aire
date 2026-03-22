@@ -8,22 +8,8 @@ export default function Navbar() {
   const { theme, toggleTheme } = useContext(ThemeContext)
 
   return (
-    <nav style={{
-      backgroundColor: 'var(--color-nav-bg)',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-      padding: '0 1.5rem',
-      minHeight: 64,
-      display: 'flex',
-      alignItems: 'center'
-    }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        maxWidth: '100%',
-        gap: '1.5rem'
-      }}>
+    <nav className="app-navbar">
+      <div className="app-navbar-inner">
         {/* Logo y empresa - izquierda */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
           <Link

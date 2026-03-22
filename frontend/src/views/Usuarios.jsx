@@ -143,10 +143,10 @@ export default function Usuarios() {
                       <td>{u.correo}</td>
                       <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{u.rol}</span></td>
                       <td>{u.empresa?.nombre || '-'}</td>
-                      <td>
-                        <button className="btn btn-small btn-outline" onClick={() => handleEditar(u)}>Editar</button>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button type="button" className="btn btn-small btn-outline icon-action-btn" title="Editar" aria-label="Editar" onClick={() => handleEditar(u)}>✎</button>
                         {u._id?.toString() !== user?.id?.toString() && (
-                          <button className="btn btn-small red" style={{ marginLeft: '0.5rem' }} onClick={() => handleEliminar(u)}>Eliminar</button>
+                          <button type="button" className="btn btn-small red icon-action-btn" style={{ marginLeft: '0.35rem' }} title="Eliminar" aria-label="Eliminar" onClick={() => handleEliminar(u)}>🗑</button>
                         )}
                       </td>
                     </tr>

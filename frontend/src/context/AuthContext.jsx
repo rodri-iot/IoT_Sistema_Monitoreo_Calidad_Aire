@@ -1,10 +1,24 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useState, useEffect, useCallback, useRef } from 'react'
 
 export const AuthContext = createContext()
 
-export function AuthProvider({ children }) {
+/** Decodifica `exp` del JWT (segundos Unix) sin verificar firma. */
+function getJwtExpMs (token) {
+  if (!token || typeof token !== 'string') return null
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof json.exp === 'number' ? json.exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+export function AuthProvider ({ children }) {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
+  const expiryCheckRef = useRef(null)
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user')
@@ -14,6 +28,37 @@ export function AuthProvider({ children }) {
       setToken(storedToken)
     }
   }, [])
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('user')
+    localStorage.removeItem('token')
+    setUser(null)
+    setToken(null)
+  }, [])
+
+  /** Cierra sesión cuando el JWT llega a su expiración (misma ventana que el backend, p. ej. 8h). */
+  useEffect(() => {
+    if (expiryCheckRef.current) {
+      clearInterval(expiryCheckRef.current)
+      expiryCheckRef.current = null
+    }
+    if (!token) return
+
+    const expMs = getJwtExpMs(token)
+    if (!expMs) return
+
+    const tick = () => {
+      if (Date.now() >= expMs) {
+        logout()
+        window.location.href = '/login'
+      }
+    }
+    tick()
+    expiryCheckRef.current = setInterval(tick, 30_000)
+    return () => {
+      if (expiryCheckRef.current) clearInterval(expiryCheckRef.current)
+    }
+  }, [token, logout])
 
   const login = async (email, password) => {
     try {
@@ -38,15 +83,6 @@ export function AuthProvider({ children }) {
       throw err
     }
   }
-
-
-
-  const logout = useCallback(() => {
-    localStorage.removeItem('user')
-    localStorage.removeItem('token')
-    setUser(null)
-    setToken(null)
-  }, [])
 
   const fetchWithAuth = useCallback(async (url, options = {}) => {
     const headers = { ...options.headers, Authorization: `Bearer ${token}` }

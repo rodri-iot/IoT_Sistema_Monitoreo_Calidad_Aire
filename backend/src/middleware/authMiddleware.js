@@ -12,7 +12,8 @@ function authMiddleware(req, res, next) {
     req.user = decoded
     next()
   } catch (err) {
-    return res.status(403).json({ error: 'Token inválido o expirado' })
+    // 401: cliente debe volver a autenticarse (expirado o firma inválida). 403 se reserva para rol insuficiente.
+    return res.status(401).json({ error: 'Token inválido o expirado' })
   }
 }
 

@@ -25,7 +25,7 @@ export default function Login() {
 
   return (
     <div style={{
-      minHeight: 'calc(100vh - 64px)',
+      minHeight: 'calc(100vh - var(--navbar-height))',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',

@@ -207,8 +207,8 @@ export default function Zonas() {
                         </Link>
                         {canEdit && (
                           <>
-                            <button className="btn btn-small btn-outline" onClick={() => handleEditarZona(zona)}>Editar</button>
-                            <button className="btn btn-small red" onClick={() => handleEliminarZona(zona)}>Eliminar</button>
+                            <button type="button" className="btn btn-small btn-outline icon-action-btn" title="Editar" aria-label="Editar" onClick={() => handleEditarZona(zona)}>✎</button>
+                            <button type="button" className="btn btn-small red icon-action-btn" style={{ marginLeft: '0.35rem' }} title="Eliminar" aria-label="Eliminar" onClick={() => handleEliminarZona(zona)}>🗑</button>
                           </>
                         )}
                       </div>

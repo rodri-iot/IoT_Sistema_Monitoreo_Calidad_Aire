@@ -297,11 +297,15 @@ export default function Dispositivos() {
                           Ver histórico
                         </Link>
                         {canEdit && (
-                          <button className="btn btn-small btn-outline" onClick={e => { e.stopPropagation(); setModalDispositivo(dispositivo) }}>Editar</button>
+                          <button type="button" className="btn btn-small btn-outline icon-action-btn" title="Editar" aria-label="Editar" onClick={e => { e.stopPropagation(); setModalDispositivo(dispositivo) }}>✎</button>
                         )}
                         {canEdit && (
                           <button
-                            className="btn btn-small red"
+                            type="button"
+                            className="btn btn-small red icon-action-btn"
+                            style={{ marginLeft: '0.35rem' }}
+                            title="Eliminar"
+                            aria-label="Eliminar"
                             onClick={async (e) => {
                               e.stopPropagation()
                               if (!window.confirm(`¿Eliminar "${dispositivo.nombre}"?`)) return
@@ -314,7 +318,7 @@ export default function Dispositivos() {
                               }
                             }}
                           >
-                            Eliminar
+                            🗑
                           </button>
                         )}
                       </div>
