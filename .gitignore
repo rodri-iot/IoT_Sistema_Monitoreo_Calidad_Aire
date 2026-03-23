@@ -16,6 +16,8 @@ test_mqtt_tls_sub.sh
 *.cnf
 certs/
 mqtt/certs/
+mqtt/config/acl
+mqtt/config/passwords
 docker/mosquitto/certs/
 # Ignorar certificados TLS sensibles
 backend/certs/
