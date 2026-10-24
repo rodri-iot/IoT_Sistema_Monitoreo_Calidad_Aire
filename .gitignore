@@ -92,3 +92,6 @@ frontend/build/
 # Portfolio
 portfolio/node_modules/
 portfolio/dist/
+
+# El código fuente del portfolio vive en una carpeta llamada data/
+!portfolio/src/data/
