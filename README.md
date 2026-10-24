@@ -1,190 +1,93 @@
-# 🌎 Sistema de Monitoreo de Calidad del Aire (SMCA) – Versión 0.1
+# Sistema de Monitoreo de Calidad del Aire (SMCA)
 
-**Autor:** Ing. Rodrigo J. Pinedo Nava  
-**Carrera:** Especialización en Internet de las Cosas  
-**Institución:** Facultad de Ingeniería – Universidad de Buenos Aires (FIUBA)  
-**Fecha:** Abril 2025
+**Autor:** Ing. Rodrigo J. Pinedo Nava · **Carrera de Especialización en Internet de las Cosas (FIUBA)** · 2026
 
----
+Sistema IoT de extremo a extremo: nodos ESP32-S3 con sensores de partículas y gases publican por **MQTT con TLS mutuo**; un backend Node.js valida cada lectura, calcula el **AQI (EPA)** y la guarda en MongoDB; un dashboard React muestra los datos con **aislamiento por empresa** y una vista pública opcional.
 
-## 🎯 Objetivo General
+| Recurso | Enlace |
+|---|---|
+| Sitio con demo y arquitectura | carpeta [`portfolio/`](portfolio/) (desplegado en Vercel) |
+| Video del proyecto | https://www.youtube.com/watch?v=WSZIAruJqQc |
+| Video de la defensa | https://drive.google.com/file/d/1ci5M1UneZ5V-260mvkOnA0B-nq1ydaxN/view |
+| Memoria (PDF) | https://lse-posgrados-files.fi.uba.ar/tesis/LSE-FIUBA-Trabajo-Final-CEIoT-Rodrigo-Jurgen-Pinedo-Nava-2026.pdf |
+| Presentación (PDF) | https://lse-posgrados-files.fi.uba.ar/tesis/LSE-FIUBA-Trabajo-Final-CEIoT-Rodrigo-Jurgen-Pinedo-Nava-2026-Presentacion.pdf |
+| Firmware del nodo | https://github.com/rodri-iot/IoT_SMCA_Firmware |
 
-Desarrollar un sistema IoT completo para el monitoreo ambiental distribuido, orientado a medir y visualizar parámetros clave de calidad del aire en zonas urbanas, utilizando nodos sensores ESP32 conectados vía WiFi y LoRaWAN.
+> La versión presentada en la defensa está en el tag **`v1.0-defensa`** (`git checkout v1.0-defensa`). Desde entonces el repositorio suma el sitio `portfolio/` y mejoras de replicabilidad; el sistema en sí no cambió.
 
----
+## Arquitectura
 
-## 🏗️ Arquitectura del Sistema
+![Arquitectura del sistema](docs/images/diagrama_2.png)
 
-![Arquitectura del Sistema IoT](docs/images/diagrama_2.png)
-
-## 🧰 Tecnologías Utilizadas
-- 🛠️ Hardware: ESP32 Heltec V3 (ESP-IDF en C)
-- 📡 Transporte: MQTT con TLS mutuo (Mosquitto Broker)
-- 🧠 Backend: Node.js, Express, MQTT.js, Mongoose
-- 🗄️ Base de datos: MongoDB
-- 🖥️ Frontend: React + Vite + MaterializeCSS
-- 🐳 Infraestructura: Docker + Docker Compose
-- 🌐 Red LoRaWAN: TTN (The Things Network)
-
-## 📂 Estructura de Carpetas
-
-``` bash
-IoT_Sistema_monitoreo_calidad_aire/
-├── backend/          # API Node.js + MQTT + MongoDB
-├── frontend/         # Dashboard web en React
-├── database/         # Base de datos Mongo
-├── hardware/         # Firmware para ESP32 (ESP-IDF)
-├── mqtt/             # Broker Mosquitto con TLS mutuo
-├── docker/           # Configuración Docker, TLS, Mosquitto, Mongo
-├── docs/             # Documentación del proyecto
-└── README.md         # Este archivo
+```
+Nodo ESP32 ──MQTTS :8883 (mTLS)──► Mosquitto ──► Backend (MQTT.js) ──► MongoDB
+                                                    │
+                                   API REST + SSE ◄─┘──► Dashboard React / Vista pública
 ```
 
-## 🖼️ Vistas del Sistema
+Detalle de cada capa, con diagramas, en el sitio (`/sistema` y `/firmware`) y en [`docs/`](docs/):
+[arquitectura de software](docs/arquitectura_software.md) · [backend](docs/arquitectura_backend.md) · [frontend](docs/arquitectura_frontend.md) · [base de datos](docs/diseno_base_de_datos.md) · [tópicos MQTT](docs/mqtt_estructura_topicos.md) · [despliegue](docs/despliegue.md).
 
-| Vista                    | Descripción                                                 |
-| ------------------------ | ----------------------------------------------------------- |
-| `/dashboard`             | Estado global, mapa de nodos activos, semáforo AQI por zona |
-| `/dispositivo/:sensorId` | Últimas lecturas y gráficos por sensor                      |
-| `/zona/:zonaId`          | AQI medio por zona, comparativas históricas                 |
-| `/historico`             | Filtros por sensor/zona/fecha + exportación CSV/Excel       |
-| `/admin`                 | Gestión de nodos, umbrales de alerta, logs del sistema      |
-| `/public`                | Vista pública simplificada con AQI y mapa sin autenticación |
+## Estructura del repositorio
 
-
-## 🔐 Seguridad TLS
-- Broker MQTT Mosquitto configurado con autenticación mutua TLS (certificados CA, cliente y servidor).
-- Certificados generados en docker/certs/.
-- El ESP32 debe embebir ca_cert.pem, client_cert.pem y client_key.pem.
-
-## 📡 Detalles MQTT
-- Broker: Mosquitto (TLS - puerto 8883)
-- Tópico de publicación: iot/aire/lectura
-- Formato del payload:
-
-``` json
-{
-  "sensorId": "esp32-001",
-  "zona": "microcentro",
-  "timestamp": "2025-04-01T12:00:00Z",
-  "pm25": 35.4,
-  "pm10": 51.2,
-  "co2": 800,
-  "tvoc": 120,
-  "temperatura": 22.5,
-  "presion": 1013.2
-}
+```
+backend/     API Node.js + Express, cliente MQTT, modelos Mongoose, scripts de simulación
+frontend/    Dashboard React + Vite (el sistema real, con login y roles)
+mqtt/        Mosquitto con TLS mutuo y generador de certificados
+portfolio/   Sitio estático de presentación + demo con datos simulados (Colegiales, CABA)
+scripts/     setup-local.sh: prepara secretos, certificados, ACL y usuarios del broker
+docs/        Documentación técnica
 ```
 
-## 🧪 Levantar el sistema en local
-### Requisitos previos
-- Docker y Docker Compose
-- Colima activo si usás Mac con chip Apple
-- Git
+## Levantar el stack completo (Docker)
 
-### Pasos
-``` bash
-# Clonar el repositorio
-git clone https://github.com/rodri-iot/SMCA.git
-cd SMCA
+Requisitos: Docker con Compose, Node.js 18+ y `openssl`.
 
-# Iniciar Colima (solo Mac)
-colima start --with-docker --mount
+```bash
+git clone https://github.com/rodri-iot/IoT_Sistema_Monitoreo_Calidad_Aire.git
+cd IoT_Sistema_Monitoreo_Calidad_Aire
 
-# Levantar todos los servicios
-docker compose -f docker/docker-compose.yml up --build
+./scripts/setup-local.sh        # .env, JWT_SECRET, CA y certificados, ACL, usuarios del broker
+docker compose up -d --build    # MongoDB + Mosquitto + backend
+
+# Usuario inicial (superadmin). Cambiar la contraseña tras el primer ingreso.
+docker compose exec backend mkdir -p /app/scripts
+docker cp backend/scripts/create-admin.js backend:/app/scripts/
+docker compose exec backend node /app/scripts/create-admin.js
+
+cd frontend && npm install && npm run dev      # http://localhost:5173
 ```
 
-### Servicios disponibles
+| Servicio | URL |
+|---|---|
+| Dashboard | http://localhost:5173 |
+| API REST | http://localhost:3000/api |
+| Mosquitto (mTLS) | mqtts://localhost:8883 |
 
-| Servicio      | URL                                                       |
-| ------------- | --------------------------------------------------------- |
-| Frontend      | [http://localhost:5173](http://localhost:5173)            |
-| API REST      | [http://localhost:3000/api](http://localhost:3000/api)    |
-| Mongo Express | [http://localhost:8081](http://localhost:8081) (opcional) |
-| Mosquitto     | mqtts\://localhost:8883                                   |
+Sin hardware, se puede publicar lecturas simuladas con los scripts de [`backend/scripts/`](backend/scripts/) (ver [`docs/guia_simulacion_mqtt.md`](docs/guia_simulacion_mqtt.md)).
+Para nodos físicos: emitir un certificado por nodo (`DEVICES` en `.env.local`), flashear el [firmware](https://github.com/rodri-iot/IoT_SMCA_Firmware) con su `config.h` y registrar el dispositivo (mismo `sensorId` que el CN) desde el dashboard.
 
-## Stack de producción
+> `.env`, `.env.local`, `mqtt/certs/`, `backend/certs/`, `mqtt/config/acl` y `mqtt/config/passwords` **no se versionan**; `scripts/setup-local.sh` los genera.
 
-``` yaml
-Infraestructura:
-├── Frontend (React + Vite)
-│   └── Desplegado en S3 + CloudFront (HTTPS via ACM)
-│
-├── Backend (Node.js + Express)
-│   └── Desplegado en EC2 con Docker o PM2
-│
-├── MQTT Broker (Mosquitto TLS)
-│   └── En misma EC2 o en otra (recomiendo contenerizado)
-│
-├── Base de Datos (MongoDB)
-│   └── MongoDB Atlas (cloud, sin mantenimiento)
-│
-├── LoRaWAN Gateway
-│   └── TTN + Webhook hacia Backend o MQTT bridge
-│
-├── Dominio
-│   └── Route53 para gestionar dominio + registros
+## Sitio estático y demo (`portfolio/`)
+
+Los nodos no transmiten de forma continua, así que el sitio público no depende del backend: una demo con datos **simulados** de Colegiales (CABA), generados en el navegador con la misma escala AQI del sistema real, más las páginas de arquitectura del sistema y del firmware.
+
+```bash
+cd portfolio
+npm install
+npm run dev      # http://localhost:5174
+npm run build    # genera dist/ (estático)
 ```
 
-## 👨‍💻 Autor
-- Ing. Rodrigo Jurgen Pinedo Nava
-- 🔗 [LinkedIn](https://www.linkedin.com/in/rodrigopinedo/)
-- 📫 rpinedo.ext@fi.uba.ar
-- 📫 rodrigo.j.pinedo@gmail.com
+Despliegue en Vercel: proyecto con *Root Directory* = `portfolio` (el `vercel.json` ya define el rewrite de la SPA).
 
+## Despliegues documentados
 
+- Local con Docker (arriba).
+- [Raspberry Pi](docs/deploy/despliegue-raspberry.md).
+- AWS: [EC2](docs/deploy/despliegue-aws-ec2.md) + [S3/CloudFront](docs/deploy/despliegue-frontend-s3-cloudfront.md) + [HTTPS con Caddy](docs/deploy/https-443-backend-caddy.md) (versión de la defensa; ya no está activa).
 
-## Directorio del Proyecto
-``` bash
-IoT_Sistema_Monitoreo_Calidad_Aire/
-├── backend/ # API REST + MQTT + MongoDB
-│ ├── src/
-│ │ ├── mqtt/ # Cliente MQTT.js (suscripción segura)
-│ │ ├── db/ # Conexión y modelos de MongoDB (Mongoose)
-│ │ ├── routes/ # Endpoints REST organizados por recurso
-│ │ ├── controllers/ # Lógica de negocio de cada ruta
-│ │ ├── utils/ # Funciones comunes, helpers, middlewares
-│ │ └── server.js # Entry point del servidor Express
-│ ├── Dockerfile # Imagen para backend
-│ └── .env # Variables de entorno (MQTT, Mongo, puertos)
-│
-├── frontend/ # Dashboard en React + Vite + MaterializeCSS
-│ ├── public/ # Archivos estáticos (favicon, index.html)
-│ ├── src/ # Componentes React, lógica del frontend
-│ ├── Dockerfile # Imagen para frontend (desarrollo o producción)
-│ └── vite.config.js # Configuración de Vite
-│
-├── mqtt/ # Configuración y certificados del broker Mosquitto
-│ ├── certs/ # Certificados TLS (CA, server, client)
-│ │ ├── ca.crt
-│ │ ├── server.crt / server.key
-│ │ └── client.crt / client.key
-│ ├── config/ # Archivos de configuración de Mosquitto
-│ │ ├── mosquitto.conf
-│ │ ├── passwd # (opcional) Usuarios y contraseñas
-│ │ └── acl # (opcional) Lista de control de accesos
-│ └── Dockerfile # Imagen de Mosquitto personalizada
-│
-├── database/ # Scripts y backups de base de datos
-│ ├── seed/ # Datos iniciales (zonas, sensores, usuarios)
-│ ├── dumps/ # Backups o snapshots en BSON
-│ └── README.md # Documentación de uso
-│
-├── hardware/ # Firmware del nodo ESP32 Heltec V3 (ESP-IDF)
-│ ├── main/ # Código principal (main.c, etc.)
-│ ├── components/ # Librerías o drivers personalizados
-│ └── platformio.ini # Configuración del proyecto PlatformIO
-│
-├── docker/ # Configuraciones auxiliares para Docker
-│ └── nginx/ # Reverse proxy opcional para frontend/backend
-│
-├── docs/ # Documentación académica y técnica
-│ ├── diagramas/
-│ ├── presentaciones/
-│ └── propuesta_trabajo_final.pdf
-│
-├── docker-compose.yml # Orquestador local para todos los servicios
-├── .gitignore # Ignorar archivos temporales y certificados privados
-└── README.md # Descripción general del proyecto
-```
+## Licencia
+
+Ver [LICENSE](LICENSE).

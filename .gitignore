@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.local.example
 
 # Scripts y herramientas de test
 test_mqtt_tls_pub.sh
@@ -31,7 +32,25 @@ backend/certs/
 **/log/
 **/logs/
 **/__pycache__/
-docs/
+# docs/: se publica solo la documentación técnica curada (lista blanca).
+# docs/deploy/ contiene material sensible local (llaves, claves) y queda excluido salvo guías puntuales.
+docs/*
+!docs/images/
+!docs/arquitectura_*.md
+!docs/despliegue.md
+!docs/diseno_base_de_datos.md
+!docs/explicacion_sistema_completo.md
+!docs/mqtt_estructura_topicos.md
+!docs/resumen_flujo_sistema.md
+!docs/guia_simulacion_mqtt.md
+!docs/informacion_conexion_mqtt_esp32.md
+!docs/deploy/
+docs/deploy/*
+!docs/deploy/despliegue-raspberry.md
+!docs/deploy/despliegue-aws-ec2.md
+!docs/deploy/despliegue-frontend-s3-cloudfront.md
+!docs/deploy/https-443-backend-caddy.md
+!docs/deploy/certificados-mqtt-y-permisos.md
 
 # Archivos de VS Code / IDEs
 .vscode/
@@ -69,3 +88,7 @@ frontend/build/
 # Otros
 *.bak
 *.swp
+
+# Portfolio
+portfolio/node_modules/
+portfolio/dist/
